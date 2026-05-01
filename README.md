@@ -22,7 +22,7 @@ The app starts on a menu with:
 - New Game
 - Statistics
 
-Continue loads the current save. New Game shows an in-window warning before deleting old progress, keeps lifetime statistics, and starts a fresh game. Statistics shows total games played, character deaths, successful feed/heal/clean counts, current-save survival stats, and the last death summary when available.
+Continue loads the current save. New Game shows an in-window warning before deleting old progress, keeps lifetime statistics, and starts a fresh game. Statistics shows total games played, character deaths, successful feed/heal/clean counts, current-save survival stats, and the last death summary when available. When the character dies, the game shows a Game Over screen with the current save's stats and buttons for starting a new game or returning to the menu.
 
 Every 20 seconds, one inactive status can randomly activate:
 
@@ -34,4 +34,4 @@ Use `Feed`, `Heal`, and `Clean` to clear the matching status.
 
 Progress, lifetime statistics, current-save statistics, the last death summary, and the sound toggle are saved to `save.json` when returning to the menu, closing the app, or changing care status.
 
-When a random status change happens, the game plays `assets/audio/notification_1.mp3` at 50% app volume. Use the upper-right microphone button to turn game sound on or off.
+When a random status change happens, the game plays `assets/audio/notification_1.mp3` at 50% app volume. Use the upper-right speaker button to turn game sound on or off.

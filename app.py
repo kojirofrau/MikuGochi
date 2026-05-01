@@ -54,6 +54,7 @@ class MikuGochiApp(tk.Tk):
         self.last_game_statistics: dict[str, int] | None = None
         self.has_save = SAVE_FILE.exists()
         self.game_started = False
+        self.character_dead = False
         self.sound_enabled = True
         self.status_roll_job: str | None = None
         self.sound_close_job: str | None = None
@@ -61,6 +62,7 @@ class MikuGochiApp(tk.Tk):
 
         self.status_labels: dict[str, ttk.Label] = {}
         self.sound_buttons: list[ttk.Button] = []
+        self.sound_images = self._create_sound_images()
 
         self.configure(bg="#f6f7fb")
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -69,7 +71,10 @@ class MikuGochiApp(tk.Tk):
 
     def _clear_screen(self) -> None:
         if self.status_roll_job is not None:
-            self.after_cancel(self.status_roll_job)
+            try:
+                self.after_cancel(self.status_roll_job)
+            except tk.TclError:
+                pass
             self.status_roll_job = None
 
         if self.screen_frame is not None:
@@ -103,7 +108,7 @@ class MikuGochiApp(tk.Tk):
 
         continue_button = ttk.Button(frame, text="Continue", command=self.continue_game)
         continue_button.pack(fill="x", pady=6, ipady=6)
-        if not self.has_save:
+        if not self.has_save or self.character_dead:
             continue_button.state(["disabled"])
 
         if show_new_game_warning:
@@ -258,6 +263,59 @@ class MikuGochiApp(tk.Tk):
             wraplength=400,
         ).pack(fill="x", pady=(8, 0))
 
+    def _show_death_screen(self) -> None:
+        self._clear_screen()
+
+        frame = tk.Frame(self, bg="#f6f7fb", padx=36, pady=28)
+        frame.pack(fill="both", expand=True)
+        self.screen_frame = frame
+
+        self._add_sound_button(frame, x=-8, y=0)
+
+        ttk.Label(
+            frame,
+            text="Game Over",
+            anchor="center",
+            font=("Segoe UI", 24, "bold"),
+        ).pack(fill="x", pady=(28, 10))
+
+        ttk.Label(
+            frame,
+            text="Miku could not keep going.",
+            anchor="center",
+        ).pack(fill="x", pady=(0, 20))
+
+        stats = self.last_game_statistics or {
+            "survived_minutes": self._current_survival_minutes(),
+            "times_fed": self.current_game_statistics["times_fed"],
+            "times_healed": self.current_game_statistics["times_healed"],
+            "times_cleaned": self.current_game_statistics["times_cleaned"],
+        }
+
+        stats_frame = ttk.Frame(frame)
+        stats_frame.pack(fill="x", pady=(0, 20))
+        stats_frame.columnconfigure(0, weight=1)
+        stats_frame.columnconfigure(1, weight=0)
+
+        rows = [
+            ("Survived minutes", stats["survived_minutes"]),
+            ("Times fed", stats["times_fed"]),
+            ("Times healed", stats["times_healed"]),
+            ("Times cleaned", stats["times_cleaned"]),
+        ]
+
+        for row, (label, value) in enumerate(rows):
+            ttk.Label(stats_frame, text=label).grid(row=row, column=0, sticky="w", pady=7)
+            ttk.Label(stats_frame, text=str(value), font=("Segoe UI", 11, "bold")).grid(
+                row=row,
+                column=1,
+                sticky="e",
+                pady=7,
+            )
+
+        ttk.Button(frame, text="New Game", command=self._start_new_game).pack(fill="x", pady=6, ipady=6)
+        ttk.Button(frame, text="Menu", command=self._save_and_show_menu).pack(fill="x", pady=6, ipady=6)
+
     def _add_status(self, parent: ttk.Frame, key: str, label: str, column: int) -> None:
         parent.columnconfigure(column, weight=1, uniform="status")
 
@@ -284,7 +342,7 @@ class MikuGochiApp(tk.Tk):
         button.grid(row=0, column=column, padx=4, sticky="ew")
 
     def _add_sound_button(self, parent: tk.Frame | ttk.Frame, x: int, y: int) -> None:
-        button = ttk.Button(parent, text=self._sound_button_text(), command=self._toggle_sound)
+        button = ttk.Button(parent, image=self._sound_button_image(), command=self._toggle_sound)
         button.place(relx=1.0, x=x, y=y, anchor="ne")
         self.sound_buttons.append(button)
 
@@ -295,10 +353,10 @@ class MikuGochiApp(tk.Tk):
 
     def _refresh_sound_buttons(self) -> None:
         for button in self.sound_buttons:
-            button.configure(text=self._sound_button_text())
+            button.configure(image=self._sound_button_image())
 
-    def _sound_button_text(self) -> str:
-        return "Mic On" if self.sound_enabled else "Mic Off"
+    def _sound_button_image(self) -> tk.PhotoImage:
+        return self.sound_images["on" if self.sound_enabled else "off"]
 
     def _schedule_status_roll(self) -> None:
         self.status_roll_job = self.after(STATUS_CHECK_INTERVAL_MS, self._roll_random_status)
@@ -321,15 +379,14 @@ class MikuGochiApp(tk.Tk):
                 "times_cleaned": self.current_game_statistics["times_cleaned"],
             }
             self.statistics["character_deaths"] += 1
-            self.statistics["games_played"] += 1
-            self.statuses = DEFAULT_STATUSES.copy()
-            self.current_game_statistics = self._new_game_statistics()
-            self.feedback_label.configure(text="Miku could not keep going. A new game has started.")
-            self._refresh_status_ui()
+            self.character_dead = True
             self._play_notification_sound()
             self._save_progress()
+            self._show_death_screen()
+            return
 
-        self._schedule_status_roll()
+        if not self.character_dead:
+            self._schedule_status_roll()
 
     def _refresh_status_ui(self) -> None:
         for key, label in self.status_labels.items():
@@ -365,6 +422,10 @@ class MikuGochiApp(tk.Tk):
 
     def continue_game(self) -> None:
         self._load_save()
+        if self.character_dead:
+            self._show_death_screen()
+            return
+
         self._show_game()
 
     def new_game(self) -> None:
@@ -378,6 +439,7 @@ class MikuGochiApp(tk.Tk):
         self.statuses = DEFAULT_STATUSES.copy()
         self.current_game_statistics = self._new_game_statistics()
         self.last_game_statistics = None
+        self.character_dead = False
         self.statistics["games_played"] += 1
         self.has_save = True
         if SAVE_FILE.exists():
@@ -402,6 +464,7 @@ class MikuGochiApp(tk.Tk):
         saved_statistics = data.get("statistics", {})
         saved_current_game_statistics = data.get("current_game", {})
         saved_last_game_statistics = data.get("last_game")
+        self.character_dead = bool(data.get("character_dead", False))
 
         self.statuses = {
             key: bool(saved_statuses.get(key, default))
@@ -438,6 +501,7 @@ class MikuGochiApp(tk.Tk):
             "statistics": self.statistics,
             "current_game": self.current_game_statistics,
             "last_game": self.last_game_statistics,
+            "character_dead": self.character_dead,
             "sound_enabled": self.sound_enabled,
         }
         SAVE_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -484,6 +548,85 @@ class MikuGochiApp(tk.Tk):
             return ctypes.windll.winmm.mciSendStringW(command, None, 0, None) == 0
         except AttributeError:
             return False
+
+    def _create_sound_images(self) -> dict[str, tk.PhotoImage]:
+        return {
+            "on": self._create_speaker_image(muted=False),
+            "off": self._create_speaker_image(muted=True),
+        }
+
+    def _create_speaker_image(self, muted: bool) -> tk.PhotoImage:
+        image = tk.PhotoImage(width=24, height=24)
+
+        for x in range(5, 10):
+            for y in range(9, 16):
+                image.put("#2f3440", (x, y))
+
+        speaker_points = [
+            (10, 8),
+            (11, 8),
+            (10, 9),
+            (11, 9),
+            (12, 9),
+            (10, 10),
+            (11, 10),
+            (12, 10),
+            (13, 10),
+            (10, 11),
+            (11, 11),
+            (12, 11),
+            (13, 11),
+            (10, 12),
+            (11, 12),
+            (12, 12),
+            (13, 12),
+            (10, 13),
+            (11, 13),
+            (12, 13),
+            (13, 13),
+            (10, 14),
+            (11, 14),
+            (12, 14),
+            (10, 15),
+            (11, 15),
+            (10, 16),
+            (11, 16),
+        ]
+        for point in speaker_points:
+            image.put("#2f3440", point)
+
+        if muted:
+            self._draw_line(image, 16, 8, 21, 16, "#c83232")
+            self._draw_line(image, 21, 8, 16, 16, "#c83232")
+        else:
+            self._draw_line(image, 16, 9, 17, 10, "#2f3440")
+            self._draw_line(image, 17, 11, 17, 13, "#2f3440")
+            self._draw_line(image, 16, 15, 17, 14, "#2f3440")
+            self._draw_line(image, 19, 7, 21, 10, "#2f3440")
+            self._draw_line(image, 21, 11, 21, 13, "#2f3440")
+            self._draw_line(image, 21, 14, 19, 17, "#2f3440")
+
+        return image
+
+    @staticmethod
+    def _draw_line(image: tk.PhotoImage, x1: int, y1: int, x2: int, y2: int, color: str) -> None:
+        dx = abs(x2 - x1)
+        dy = -abs(y2 - y1)
+        sx = 1 if x1 < x2 else -1
+        sy = 1 if y1 < y2 else -1
+        error = dx + dy
+
+        while True:
+            image.put(color, (x1, y1))
+            if x1 == x2 and y1 == y2:
+                break
+            doubled_error = 2 * error
+            if doubled_error >= dy:
+                error += dy
+                x1 += sx
+            if doubled_error <= dx:
+                error += dx
+                y1 += sy
 
     @staticmethod
     def _new_game_statistics() -> dict[str, int]:
