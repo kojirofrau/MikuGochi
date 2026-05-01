@@ -9,6 +9,8 @@ from tkinter import ttk
 
 WINDOW_SIZE = 512
 CHARACTER_AREA_HEIGHT = 340
+TOP_BUTTON_SIZE = 32
+MENU_BUTTON_WIDTH = 64
 STATUS_CHECK_INTERVAL_MS = 20_000
 SAVE_FILE = Path(__file__).with_name("save.json")
 NOTIFICATION_SOUND_FILE = Path(__file__).with_name("assets") / "audio" / "notification_1.mp3"
@@ -85,6 +87,7 @@ class MikuGochiApp(tk.Tk):
 
     def _show_menu(self, show_new_game_warning: bool = False) -> None:
         self._clear_screen()
+        show_new_game_warning = show_new_game_warning and self.has_save
 
         frame = tk.Frame(self, bg="#f6f7fb", padx=44, pady=44)
         frame.pack(fill="both", expand=True)
@@ -166,9 +169,8 @@ class MikuGochiApp(tk.Tk):
         character_frame.pack_propagate(False)
         character_frame.pack(fill="x", side="top")
 
-        menu_button = ttk.Button(character_frame, text="Menu", command=self._save_and_show_menu)
-        menu_button.place(relx=1.0, x=-12, y=12, anchor="ne")
-        self._add_sound_button(character_frame, x=-80, y=12)
+        self._add_menu_button(character_frame, x=-12, y=12)
+        self._add_sound_button(character_frame, x=-(12 + MENU_BUTTON_WIDTH + 8), y=12)
 
         controls_frame = ttk.Frame(frame, padding=(16, 14, 16, 12))
         controls_frame.pack(fill="both", expand=True)
@@ -204,8 +206,8 @@ class MikuGochiApp(tk.Tk):
         frame.pack(fill="both", expand=True)
         self.screen_frame = frame
 
-        ttk.Button(frame, text="Menu", command=self._save_and_show_menu).place(relx=1.0, x=-8, y=0, anchor="ne")
-        self._add_sound_button(frame, x=-76, y=0)
+        self._add_menu_button(frame, x=-8, y=0)
+        self._add_sound_button(frame, x=-(8 + MENU_BUTTON_WIDTH + 8), y=0)
 
         ttk.Label(
             frame,
@@ -224,16 +226,6 @@ class MikuGochiApp(tk.Tk):
             ("Times healed", self.statistics["times_healed"]),
             ("Times cleaned", self.statistics["times_cleaned"]),
         ]
-
-        if self.has_save:
-            rows.extend(
-                [
-                    ("Current survival minutes", self._current_survival_minutes()),
-                    ("Current times fed", self.current_game_statistics["times_fed"]),
-                    ("Current times healed", self.current_game_statistics["times_healed"]),
-                    ("Current times cleaned", self.current_game_statistics["times_cleaned"]),
-                ]
-            )
 
         if self.last_game_statistics is not None:
             rows.extend(
@@ -343,8 +335,22 @@ class MikuGochiApp(tk.Tk):
 
     def _add_sound_button(self, parent: tk.Frame | ttk.Frame, x: int, y: int) -> None:
         button = ttk.Button(parent, image=self._sound_button_image(), command=self._toggle_sound)
-        button.place(relx=1.0, x=x, y=y, anchor="ne")
+        self._place_top_button(button, x, y, TOP_BUTTON_SIZE)
         self.sound_buttons.append(button)
+
+    def _add_menu_button(self, parent: tk.Frame | ttk.Frame, x: int, y: int) -> None:
+        button = ttk.Button(parent, text="Menu", command=self._save_and_show_menu)
+        self._place_top_button(button, x, y, MENU_BUTTON_WIDTH)
+
+    def _place_top_button(self, button: ttk.Button, x: int, y: int, width: int) -> None:
+        button.place(
+            relx=1.0,
+            x=x,
+            y=y,
+            width=width,
+            height=TOP_BUTTON_SIZE,
+            anchor="ne",
+        )
 
     def _toggle_sound(self) -> None:
         self.sound_enabled = not self.sound_enabled
@@ -429,7 +435,7 @@ class MikuGochiApp(tk.Tk):
         self._show_game()
 
     def new_game(self) -> None:
-        if SAVE_FILE.exists():
+        if self.has_save:
             self._show_menu(show_new_game_warning=True)
             return
 
@@ -453,11 +459,13 @@ class MikuGochiApp(tk.Tk):
 
     def _load_save(self) -> None:
         if not SAVE_FILE.exists():
+            self.has_save = False
             return
 
         try:
             data = json.loads(SAVE_FILE.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
+            self.has_save = False
             return
 
         saved_statuses = data.get("statuses", {})

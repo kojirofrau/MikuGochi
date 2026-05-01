@@ -22,7 +22,7 @@ The app starts on a menu with:
 - New Game
 - Statistics
 
-Continue loads the current save. New Game shows an in-window warning before deleting old progress, keeps lifetime statistics, and starts a fresh game. Statistics shows total games played, character deaths, successful feed/heal/clean counts, current-save survival stats, and the last death summary when available. When the character dies, the game shows a Game Over screen with the current save's stats and buttons for starting a new game or returning to the menu.
+Continue loads the current save. New Game shows an in-window warning before deleting old progress, keeps lifetime statistics, and starts a fresh game. Statistics shows total games played, character deaths, successful feed/heal/clean counts, and the last death summary when available. When the character dies, the game shows a Game Over screen with the current save's stats and buttons for starting a new game or returning to the menu.
 
 Every 20 seconds, one inactive status can randomly activate:
 
