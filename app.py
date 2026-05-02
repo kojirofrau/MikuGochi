@@ -27,6 +27,8 @@ SOUNDTRACK_FILES = [
 NOTIFICATION_SOUND_VOLUME = 500
 SOUNDTRACK_VOLUME = NOTIFICATION_SOUND_VOLUME // 2
 NOTIFICATION_SOUND_CLOSE_DELAY_MS = 5_000
+SOUNDTRACK_MONITOR_INTERVAL_MS = 2_000
+SOUNDTRACK_FALLBACK_DURATION_MS = 180_000
 MAX_STATUS_SEVERITY = 3
 MAX_ENERGY = 100
 CARE_ACTION_ENERGY_COST = 5
@@ -120,6 +122,7 @@ class MikuGochiApp(tk.Tk):
         self.death_countdown_remaining: int | None = None
         self.sound_close_job: str | None = None
         self.soundtrack_next_job: str | None = None
+        self.soundtrack_monitor_job: str | None = None
         self.current_soundtrack: Path | None = None
         self.screen_frame: tk.Frame | ttk.Frame | None = None
         self.tooltip_window: tk.Toplevel | None = None
@@ -136,9 +139,8 @@ class MikuGochiApp(tk.Tk):
         self.configure(bg="#f6f7fb")
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._load_save()
-        if self.sound_enabled:
-            self._play_next_soundtrack()
         self._show_menu()
+        self.after(100, self._ensure_soundtrack_playing)
 
     def _clear_screen(self) -> None:
         if self.status_roll_job is not None:
@@ -657,7 +659,7 @@ class MikuGochiApp(tk.Tk):
         else:
             self._close_timer_sound()
         if self.sound_enabled:
-            self._play_next_soundtrack()
+            self._ensure_soundtrack_playing()
         else:
             self._close_soundtrack()
         self._refresh_sound_buttons()
@@ -1061,6 +1063,26 @@ class MikuGochiApp(tk.Tk):
         track = random.choice(choices)
         self._play_soundtrack(track)
 
+    def _ensure_soundtrack_playing(self) -> None:
+        if self.soundtrack_monitor_job is not None:
+            try:
+                self.after_cancel(self.soundtrack_monitor_job)
+            except tk.TclError:
+                pass
+            self.soundtrack_monitor_job = None
+
+        if not self.sound_enabled:
+            self._close_soundtrack()
+            return
+
+        if self._soundtrack_mode() != "playing":
+            self._play_next_soundtrack()
+
+        self.soundtrack_monitor_job = self.after(
+            SOUNDTRACK_MONITOR_INTERVAL_MS,
+            self._ensure_soundtrack_playing,
+        )
+
     def _play_soundtrack(self, track: Path) -> None:
         self._close_soundtrack()
         self.current_soundtrack = track
@@ -1070,14 +1092,16 @@ class MikuGochiApp(tk.Tk):
             self.current_soundtrack = None
             return
 
+        self._mci("set soundtrack time format milliseconds")
         self._mci(f"setaudio soundtrack volume to {SOUNDTRACK_VOLUME}")
         if not self._mci("play soundtrack"):
             self._close_soundtrack()
             return
 
         duration_ms = self._soundtrack_duration_ms()
-        if duration_ms > 0:
-            self.soundtrack_next_job = self.after(duration_ms, self._play_next_soundtrack)
+        if duration_ms <= 0:
+            duration_ms = SOUNDTRACK_FALLBACK_DURATION_MS
+        self.soundtrack_next_job = self.after(duration_ms, self._play_next_soundtrack)
 
     def _soundtrack_duration_ms(self) -> int:
         status_buffer = ctypes.create_unicode_buffer(64)
@@ -1099,7 +1123,31 @@ class MikuGochiApp(tk.Tk):
         except ValueError:
             return 0
 
+    def _soundtrack_mode(self) -> str:
+        status_buffer = ctypes.create_unicode_buffer(64)
+        try:
+            result = ctypes.windll.winmm.mciSendStringW(
+                "status soundtrack mode",
+                status_buffer,
+                len(status_buffer),
+                None,
+            )
+        except AttributeError:
+            return ""
+
+        if result != 0:
+            return ""
+
+        return status_buffer.value.strip().lower()
+
     def _close_soundtrack(self) -> None:
+        if self.soundtrack_monitor_job is not None:
+            try:
+                self.after_cancel(self.soundtrack_monitor_job)
+            except tk.TclError:
+                pass
+            self.soundtrack_monitor_job = None
+
         if self.soundtrack_next_job is not None:
             try:
                 self.after_cancel(self.soundtrack_next_job)
