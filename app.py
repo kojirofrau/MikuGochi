@@ -485,9 +485,7 @@ class MikuGochiApp(tk.Tk):
         self.status_roll_job = self.after(STATUS_CHECK_INTERVAL_MS, self._roll_random_status)
 
     def _roll_random_status(self) -> None:
-        if random.random() < STATUS_CHANGE_CHANCE:
-            self._worsen_random_status()
-        else:
+        if not self._try_worsen_random_status():
             self.feedback_label.configure(text="Nothing changed for now.")
             self._refresh_status_ui()
             self._save_progress()
@@ -496,6 +494,12 @@ class MikuGochiApp(tk.Tk):
 
         if not self.character_dead:
             self._schedule_status_roll()
+
+    def _try_worsen_random_status(self) -> bool:
+        if random.random() >= STATUS_CHANGE_CHANCE:
+            return False
+
+        return self._worsen_random_status()
 
     def _worsen_random_status(self) -> bool:
         available_statuses = [
@@ -579,7 +583,7 @@ class MikuGochiApp(tk.Tk):
         self.energy = min(MAX_ENERGY, self.energy + REST_ENERGY_GAIN)
         worsened_count = 0
         for _ in range(REST_STATUS_TRIGGERS):
-            if self._worsen_random_status():
+            if self._try_worsen_random_status():
                 worsened_count += 1
 
         self.feedback_label.configure(

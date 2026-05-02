@@ -36,7 +36,7 @@ Every 20 seconds, there is a 60% chance that one status that is not already maxe
 
 Each status has severity `0-3`. Use `Feed`, `Heal`, `Clean`, and `Entertain` to reduce the matching status by one point. Each care action costs `5` energy.
 
-The character starts with `100` energy and cannot go above `100`. Energy is shown in the upper-left corner of the character window. Use `Rest` to recover `10` energy. Resting is risky: it triggers random status worsening three times.
+The character starts with `100` energy and cannot go above `100`. Energy is shown in the upper-left corner of the character window. Use `Rest` to recover `10` energy. Resting is risky: it performs three status checks, each with the same 60% chance to worsen one random status.
 
 The character window shows a text state in the center, such as `Waiting`, `Sick`, `Hungry`, `Messy`, or `Lazy`. It also shows a mood scale in the lower-left corner:
 
