@@ -24,13 +24,24 @@ The app starts on a menu with:
 
 Continue loads the current save. New Game shows an in-window warning before deleting old progress, keeps lifetime statistics, and starts a fresh game. Statistics shows total games played, character deaths, successful feed/heal/clean counts, and the last death summary when available. When the character dies, the game shows a Game Over screen with the current save's stats and buttons for starting a new game or returning to the menu.
 
-Every 20 seconds, one inactive status can randomly activate:
+Every 20 seconds, one status that is not already maxed can randomly worsen by one severity level:
 
 - Hunger
 - Health
 - Dirt
+- Lazy
 
-Use `Feed`, `Heal`, and `Clean` to clear the matching status.
+Each status has severity `0-3`. Use `Feed`, `Heal`, `Clean`, and `Entertain` to reset the matching status to `0`.
+
+The character window shows a text state in the center, such as `Waiting`, `Sick`, `Hungry`, `Messy`, or `Lazy`. It also shows a mood scale in the lower-left corner:
+
+- Terrible
+- Bad
+- Normal
+- Good
+- Excellent
+
+Mood is calculated from the total severity of all statuses. If every status reaches severity `3`, a death countdown starts. During the countdown, `assets/audio/notification_timer_1.mp3` loops until the player clears a status or the countdown reaches zero.
 
 Progress, lifetime statistics, current-save statistics, the last death summary, and the sound toggle are saved to `save.json` when returning to the menu, closing the app, or changing care status.
 

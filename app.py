@@ -12,16 +12,20 @@ CHARACTER_AREA_HEIGHT = 340
 TOP_BUTTON_SIZE = 32
 MENU_BUTTON_WIDTH = 64
 STATUS_CHECK_INTERVAL_MS = 20_000
+DEATH_COUNTDOWN_SECONDS = 30
 SAVE_FILE = Path(__file__).with_name("save.json")
 NOTIFICATION_SOUND_FILE = Path(__file__).with_name("assets") / "audio" / "notification_1.mp3"
+TIMER_SOUND_FILE = Path(__file__).with_name("assets") / "audio" / "notification_timer_1.mp3"
 NOTIFICATION_SOUND_VOLUME = 500
 NOTIFICATION_SOUND_CLOSE_DELAY_MS = 5_000
+MAX_STATUS_SEVERITY = 3
 
 
 DEFAULT_STATUSES = {
-    "hunger": False,
-    "sickness": False,
-    "dirty_room": False,
+    "hunger": 0,
+    "sickness": 0,
+    "dirty_room": 0,
+    "lazy": 0,
 }
 
 
@@ -31,6 +35,7 @@ DEFAULT_STATISTICS = {
     "times_fed": 0,
     "times_healed": 0,
     "times_cleaned": 0,
+    "times_entertained": 0,
 }
 
 
@@ -39,6 +44,7 @@ DEFAULT_GAME_STATISTICS = {
     "times_fed": 0,
     "times_healed": 0,
     "times_cleaned": 0,
+    "times_entertained": 0,
 }
 
 
@@ -59,10 +65,15 @@ class MikuGochiApp(tk.Tk):
         self.character_dead = False
         self.sound_enabled = True
         self.status_roll_job: str | None = None
+        self.death_countdown_job: str | None = None
+        self.death_countdown_remaining: int | None = None
         self.sound_close_job: str | None = None
         self.screen_frame: tk.Frame | ttk.Frame | None = None
 
         self.status_labels: dict[str, ttk.Label] = {}
+        self.mood_label: ttk.Label | None = None
+        self.character_state_label: ttk.Label | None = None
+        self.death_timer_label: ttk.Label | None = None
         self.sound_buttons: list[ttk.Button] = []
         self.sound_images = self._create_sound_images()
 
@@ -79,11 +90,16 @@ class MikuGochiApp(tk.Tk):
                 pass
             self.status_roll_job = None
 
+        self._cancel_death_countdown()
+
         if self.screen_frame is not None:
             self.screen_frame.destroy()
             self.screen_frame = None
 
         self.sound_buttons = []
+        self.mood_label = None
+        self.character_state_label = None
+        self.death_timer_label = None
 
     def _show_menu(self, show_new_game_warning: bool = False) -> None:
         self._clear_screen()
@@ -172,6 +188,34 @@ class MikuGochiApp(tk.Tk):
         self._add_menu_button(character_frame, x=-12, y=12)
         self._add_sound_button(character_frame, x=-(12 + MENU_BUTTON_WIDTH + 8), y=12)
 
+        self.character_state_label = ttk.Label(
+            character_frame,
+            text="Waiting",
+            anchor="center",
+            font=("Segoe UI", 24, "bold"),
+            background="#ffffff",
+        )
+        self.character_state_label.place(relx=0.5, rely=0.5, anchor="center")
+
+        self.mood_label = ttk.Label(
+            character_frame,
+            text="Mood: Excellent",
+            anchor="w",
+            font=("Segoe UI", 11, "bold"),
+            background="#ffffff",
+        )
+        self.mood_label.place(x=14, rely=1.0, y=-18, anchor="sw")
+
+        self.death_timer_label = ttk.Label(
+            character_frame,
+            text="",
+            anchor="e",
+            font=("Segoe UI", 11, "bold"),
+            foreground="#b3261e",
+            background="#ffffff",
+        )
+        self.death_timer_label.place(relx=1.0, x=-14, rely=1.0, y=-18, anchor="se")
+
         controls_frame = ttk.Frame(frame, padding=(16, 14, 16, 12))
         controls_frame.pack(fill="both", expand=True)
 
@@ -181,6 +225,7 @@ class MikuGochiApp(tk.Tk):
         self._add_status(status_frame, "hunger", "Hunger", 0)
         self._add_status(status_frame, "sickness", "Health", 1)
         self._add_status(status_frame, "dirty_room", "Dirt", 2)
+        self._add_status(status_frame, "lazy", "Lazy", 3)
 
         button_frame = ttk.Frame(controls_frame)
         button_frame.pack(fill="x", pady=(18, 0))
@@ -188,6 +233,7 @@ class MikuGochiApp(tk.Tk):
         self._add_button(button_frame, "Feed", self.feed, 0)
         self._add_button(button_frame, "Heal", self.heal, 1)
         self._add_button(button_frame, "Clean", self.clean, 2)
+        self._add_button(button_frame, "Entertain", self.entertain, 3)
 
         self.feedback_label = ttk.Label(
             controls_frame,
@@ -197,6 +243,7 @@ class MikuGochiApp(tk.Tk):
         self.feedback_label.pack(fill="x", pady=(16, 0))
 
         self._refresh_status_ui()
+        self._update_death_countdown()
         self._schedule_status_roll()
 
     def _show_statistics(self) -> None:
@@ -225,6 +272,7 @@ class MikuGochiApp(tk.Tk):
             ("Times fed", self.statistics["times_fed"]),
             ("Times healed", self.statistics["times_healed"]),
             ("Times cleaned", self.statistics["times_cleaned"]),
+            ("Times entertained", self.statistics["times_entertained"]),
         ]
 
         if self.last_game_statistics is not None:
@@ -234,6 +282,7 @@ class MikuGochiApp(tk.Tk):
                     ("Last times fed", self.last_game_statistics["times_fed"]),
                     ("Last times healed", self.last_game_statistics["times_healed"]),
                     ("Last times cleaned", self.last_game_statistics["times_cleaned"]),
+                    ("Last times entertained", self.last_game_statistics["times_entertained"]),
                 ]
             )
 
@@ -282,6 +331,7 @@ class MikuGochiApp(tk.Tk):
             "times_fed": self.current_game_statistics["times_fed"],
             "times_healed": self.current_game_statistics["times_healed"],
             "times_cleaned": self.current_game_statistics["times_cleaned"],
+            "times_entertained": self.current_game_statistics["times_entertained"],
         }
 
         stats_frame = ttk.Frame(frame)
@@ -294,6 +344,7 @@ class MikuGochiApp(tk.Tk):
             ("Times fed", stats["times_fed"]),
             ("Times healed", stats["times_healed"]),
             ("Times cleaned", stats["times_cleaned"]),
+            ("Times entertained", stats["times_entertained"]),
         ]
 
         for row, (label, value) in enumerate(rows):
@@ -354,6 +405,10 @@ class MikuGochiApp(tk.Tk):
 
     def _toggle_sound(self) -> None:
         self.sound_enabled = not self.sound_enabled
+        if self.sound_enabled and self.death_countdown_remaining is not None:
+            self._play_timer_sound()
+        else:
+            self._close_timer_sound()
         self._refresh_sound_buttons()
         self._save_progress()
 
@@ -368,35 +423,41 @@ class MikuGochiApp(tk.Tk):
         self.status_roll_job = self.after(STATUS_CHECK_INTERVAL_MS, self._roll_random_status)
 
     def _roll_random_status(self) -> None:
-        inactive_statuses = [key for key, active in self.statuses.items() if not active]
+        available_statuses = [
+            key for key, severity in self.statuses.items() if severity < MAX_STATUS_SEVERITY
+        ]
 
-        if inactive_statuses:
-            key = random.choice(inactive_statuses)
-            self.statuses[key] = True
-            self.feedback_label.configure(text=f"{self._display_name(key)} needs attention.")
+        if available_statuses:
+            key = random.choice(available_statuses)
+            self.statuses[key] += 1
+            self.feedback_label.configure(
+                text=f"{self._display_name(key)} increased to {self.statuses[key]}/{MAX_STATUS_SEVERITY}."
+            )
             self._refresh_status_ui()
             self._play_notification_sound()
             self._save_progress()
-        else:
-            self.last_game_statistics = {
-                "survived_minutes": self._current_survival_minutes(),
-                "times_fed": self.current_game_statistics["times_fed"],
-                "times_healed": self.current_game_statistics["times_healed"],
-                "times_cleaned": self.current_game_statistics["times_cleaned"],
-            }
-            self.statistics["character_deaths"] += 1
-            self.character_dead = True
-            self._play_notification_sound()
-            self._save_progress()
-            self._show_death_screen()
-            return
+
+        self._update_death_countdown()
 
         if not self.character_dead:
             self._schedule_status_roll()
 
     def _refresh_status_ui(self) -> None:
         for key, label in self.status_labels.items():
-            label.configure(text="!" if self.statuses[key] else "OK")
+            severity = self.statuses[key]
+            label.configure(text="OK" if severity == 0 else f"{severity}/{MAX_STATUS_SEVERITY}")
+
+        if self.mood_label is not None:
+            self.mood_label.configure(text=f"Mood: {self._current_mood()}")
+
+        if self.character_state_label is not None:
+            self.character_state_label.configure(text=self._character_state_text())
+
+        if self.death_timer_label is not None:
+            if self.death_countdown_remaining is None:
+                self.death_timer_label.configure(text="")
+            else:
+                self.death_timer_label.configure(text=f"Danger: {self.death_countdown_remaining}s")
 
     def _clear_status(
         self,
@@ -406,11 +467,12 @@ class MikuGochiApp(tk.Tk):
         idle_message: str,
     ) -> None:
         if self.statuses[key]:
-            self.statuses[key] = False
+            self.statuses[key] = 0
             self.statistics[statistic_key] += 1
             self.current_game_statistics[statistic_key] += 1
             self.feedback_label.configure(text=clear_message)
             self._refresh_status_ui()
+            self._update_death_countdown()
             self._save_progress()
             return
 
@@ -425,6 +487,9 @@ class MikuGochiApp(tk.Tk):
 
     def clean(self) -> None:
         self._clear_status("dirty_room", "times_cleaned", "Cleaned. Dirt cleared.", "Room is already clean.")
+
+    def entertain(self) -> None:
+        self._clear_status("lazy", "times_entertained", "Entertained. Laziness cleared.", "Already entertained.")
 
     def continue_game(self) -> None:
         self._load_save()
@@ -446,6 +511,7 @@ class MikuGochiApp(tk.Tk):
         self.current_game_statistics = self._new_game_statistics()
         self.last_game_statistics = None
         self.character_dead = False
+        self.death_countdown_remaining = None
         self.statistics["games_played"] += 1
         self.has_save = True
         if SAVE_FILE.exists():
@@ -475,7 +541,7 @@ class MikuGochiApp(tk.Tk):
         self.character_dead = bool(data.get("character_dead", False))
 
         self.statuses = {
-            key: bool(saved_statuses.get(key, default))
+            key: self._load_status_severity(saved_statuses.get(key, default))
             for key, default in DEFAULT_STATUSES.items()
         }
         self.statistics = {
@@ -496,6 +562,7 @@ class MikuGochiApp(tk.Tk):
                 "times_fed": int(saved_last_game_statistics.get("times_fed", 0)),
                 "times_healed": int(saved_last_game_statistics.get("times_healed", 0)),
                 "times_cleaned": int(saved_last_game_statistics.get("times_cleaned", 0)),
+                "times_entertained": int(saved_last_game_statistics.get("times_entertained", 0)),
             }
         self.sound_enabled = bool(data.get("sound_enabled", True))
         self.has_save = True
@@ -518,6 +585,7 @@ class MikuGochiApp(tk.Tk):
     def _on_close(self) -> None:
         self._save_progress()
         self._close_notification_sound()
+        self._close_timer_sound()
         self.destroy()
 
     def _current_survival_minutes(self) -> int:
@@ -539,6 +607,20 @@ class MikuGochiApp(tk.Tk):
         else:
             self._close_notification_sound()
 
+    def _play_timer_sound(self) -> None:
+        if not self.sound_enabled or not TIMER_SOUND_FILE.exists():
+            return
+
+        self._close_timer_sound()
+        sound_path = str(TIMER_SOUND_FILE)
+
+        if not self._mci(f'open "{sound_path}" type mpegvideo alias death_timer'):
+            return
+
+        self._mci(f"setaudio death_timer volume to {NOTIFICATION_SOUND_VOLUME}")
+        if not self._mci("play death_timer repeat"):
+            self._close_timer_sound()
+
     def _close_notification_sound(self) -> None:
         if self.sound_close_job is not None:
             try:
@@ -549,6 +631,119 @@ class MikuGochiApp(tk.Tk):
 
         self._mci("stop notification")
         self._mci("close notification")
+
+    def _close_timer_sound(self) -> None:
+        self._mci("stop death_timer")
+        self._mci("close death_timer")
+
+    def _update_death_countdown(self) -> None:
+        if self.character_dead:
+            return
+
+        if self._is_death_condition():
+            if self.death_countdown_remaining is None:
+                self.death_countdown_remaining = DEATH_COUNTDOWN_SECONDS
+                self.feedback_label.configure(text="Everything is critical. Help Miku before time runs out.")
+                self._play_timer_sound()
+                self._schedule_death_countdown_tick()
+        else:
+            self._cancel_death_countdown()
+
+        self._refresh_status_ui()
+
+    def _schedule_death_countdown_tick(self) -> None:
+        if self.death_countdown_job is None:
+            self.death_countdown_job = self.after(1_000, self._tick_death_countdown)
+
+    def _tick_death_countdown(self) -> None:
+        self.death_countdown_job = None
+
+        if self.character_dead or self.death_countdown_remaining is None:
+            return
+
+        if not self._is_death_condition():
+            self._cancel_death_countdown()
+            self._refresh_status_ui()
+            self._save_progress()
+            return
+
+        self.death_countdown_remaining -= 1
+        if self.death_countdown_remaining <= 0:
+            self._kill_character()
+            return
+
+        self._refresh_status_ui()
+        self._schedule_death_countdown_tick()
+
+    def _cancel_death_countdown(self) -> None:
+        if self.death_countdown_job is not None:
+            try:
+                self.after_cancel(self.death_countdown_job)
+            except tk.TclError:
+                pass
+            self.death_countdown_job = None
+
+        self.death_countdown_remaining = None
+        self._close_timer_sound()
+
+    def _kill_character(self) -> None:
+        self.last_game_statistics = {
+            "survived_minutes": self._current_survival_minutes(),
+            "times_fed": self.current_game_statistics["times_fed"],
+            "times_healed": self.current_game_statistics["times_healed"],
+            "times_cleaned": self.current_game_statistics["times_cleaned"],
+            "times_entertained": self.current_game_statistics["times_entertained"],
+        }
+        self.statistics["character_deaths"] += 1
+        self.character_dead = True
+        self._close_timer_sound()
+        self._play_notification_sound()
+        self._save_progress()
+        self._show_death_screen()
+
+    def _is_death_condition(self) -> bool:
+        return all(severity >= MAX_STATUS_SEVERITY for severity in self.statuses.values())
+
+    def _current_mood(self) -> str:
+        total_severity = sum(self.statuses.values())
+        if total_severity >= 10:
+            return "Terrible"
+        if total_severity >= 7:
+            return "Bad"
+        if total_severity >= 4:
+            return "Normal"
+        if total_severity >= 1:
+            return "Good"
+        return "Excellent"
+
+    def _character_state_text(self) -> str:
+        if self.death_countdown_remaining is not None:
+            return "Critical"
+
+        highest_severity = max(self.statuses.values())
+        if highest_severity <= 0:
+            return "Waiting"
+
+        priority = ["sickness", "hunger", "dirty_room", "lazy"]
+        worst_status = max(priority, key=lambda key: (self.statuses[key], -priority.index(key)))
+        return {
+            "hunger": "Hungry",
+            "sickness": "Sick",
+            "dirty_room": "Messy",
+            "lazy": "Lazy",
+        }[worst_status]
+
+    @staticmethod
+    def _load_status_severity(value: object) -> int:
+        if isinstance(value, bool):
+            return MAX_STATUS_SEVERITY if value else 0
+
+        try:
+            severity = int(value)
+        except (TypeError, ValueError):
+            return 0
+
+        return min(MAX_STATUS_SEVERITY, max(0, severity))
 
     @staticmethod
     def _mci(command: str) -> bool:
@@ -648,6 +843,7 @@ class MikuGochiApp(tk.Tk):
             "hunger": "Hunger",
             "sickness": "Health",
             "dirty_room": "Dirt",
+            "lazy": "Lazy",
         }[key]
 
 

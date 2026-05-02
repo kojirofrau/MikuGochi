@@ -1,27 +1,31 @@
 {
   "statuses": {
-    "hunger": true,
-    "sickness": true,
-    "dirty_room": true
+    "hunger": 3,
+    "sickness": 3,
+    "dirty_room": 3,
+    "lazy": 3
   },
   "statistics": {
-    "games_played": 10,
-    "character_deaths": 7,
+    "games_played": 11,
+    "character_deaths": 8,
     "times_fed": 1,
     "times_healed": 3,
-    "times_cleaned": 3
+    "times_cleaned": 3,
+    "times_entertained": 0
   },
   "current_game": {
-    "started_at": 1777661260,
+    "started_at": 1777740713,
     "times_fed": 0,
     "times_healed": 0,
-    "times_cleaned": 0
+    "times_cleaned": 0,
+    "times_entertained": 0
   },
   "last_game": {
-    "survived_minutes": 3,
+    "survived_minutes": 4,
     "times_fed": 0,
     "times_healed": 0,
-    "times_cleaned": 0
+    "times_cleaned": 0,
+    "times_entertained": 0
   },
   "character_dead": true,
   "sound_enabled": true
