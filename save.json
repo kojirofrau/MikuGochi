@@ -6,22 +6,22 @@
     "lazy": 0
   },
   "statistics": {
-    "games_played": 2,
+    "games_played": 3,
     "character_deaths": 0,
-    "times_fed": 5,
-    "times_healed": 7,
-    "times_cleaned": 4,
-    "times_entertained": 4
+    "times_fed": 7,
+    "times_healed": 8,
+    "times_cleaned": 7,
+    "times_entertained": 9
   },
   "current_game": {
-    "started_at": 1777742332,
-    "times_fed": 3,
-    "times_healed": 4,
+    "started_at": 1777742656,
+    "times_fed": 2,
+    "times_healed": 1,
     "times_cleaned": 3,
-    "times_entertained": 3
+    "times_entertained": 5
   },
   "last_game": null,
-  "energy": 65,
+  "energy": 90,
   "character_dead": false,
   "sound_enabled": true
 }

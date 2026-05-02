@@ -24,6 +24,10 @@ MAX_ENERGY = 100
 CARE_ACTION_ENERGY_COST = 5
 REST_ENERGY_GAIN = 10
 REST_STATUS_TRIGGERS = 3
+STARTING_MONEY = 0
+WORK_MONEY_GAIN = 2000
+WORK_ENERGY_COST = 10
+WORK_STATUS_TRIGGERS = 3
 
 
 DEFAULT_STATUSES = {
@@ -66,6 +70,7 @@ class MikuGochiApp(tk.Tk):
         self.current_game_statistics = self._new_game_statistics()
         self.last_game_statistics: dict[str, int] | None = None
         self.energy = MAX_ENERGY
+        self.money = STARTING_MONEY
         self.has_save = SAVE_FILE.exists()
         self.game_started = False
         self.character_dead = False
@@ -78,6 +83,7 @@ class MikuGochiApp(tk.Tk):
 
         self.status_labels: dict[str, ttk.Label] = {}
         self.energy_label: ttk.Label | None = None
+        self.money_label: ttk.Label | None = None
         self.mood_label: ttk.Label | None = None
         self.character_state_label: ttk.Label | None = None
         self.death_timer_label: ttk.Label | None = None
@@ -105,6 +111,7 @@ class MikuGochiApp(tk.Tk):
 
         self.sound_buttons = []
         self.energy_label = None
+        self.money_label = None
         self.mood_label = None
         self.character_state_label = None
         self.death_timer_label = None
@@ -242,6 +249,15 @@ class MikuGochiApp(tk.Tk):
         )
         self.energy_label.place(x=14, y=14, anchor="nw")
 
+        self.money_label = ttk.Label(
+            character_frame,
+            text=f"Money: {self.money}¥",
+            anchor="w",
+            font=("Segoe UI", 11, "bold"),
+            background="#ffffff",
+        )
+        self.money_label.place(x=14, y=38, anchor="nw")
+
         self.character_state_label = ttk.Label(
             character_frame,
             text="Waiting",
@@ -291,7 +307,20 @@ class MikuGochiApp(tk.Tk):
 
         rest_frame = ttk.Frame(controls_frame)
         rest_frame.pack(fill="x", pady=(10, 0))
-        ttk.Button(rest_frame, text="Rest", command=self.rest).pack(fill="x")
+        rest_frame.columnconfigure(0, weight=1, uniform="recovery")
+        rest_frame.columnconfigure(1, weight=1, uniform="recovery")
+        ttk.Button(rest_frame, text="Rest", command=self.rest).grid(
+            row=0,
+            column=0,
+            padx=(0, 4),
+            sticky="ew",
+        )
+        ttk.Button(rest_frame, text="Go to Work", command=self.go_to_work).grid(
+            row=0,
+            column=1,
+            padx=(4, 0),
+            sticky="ew",
+        )
 
         self.feedback_label = ttk.Label(
             controls_frame,
@@ -327,6 +356,7 @@ class MikuGochiApp(tk.Tk):
         rows = [
             ("Total games played", self.statistics["games_played"]),
             ("Character deaths", self.statistics["character_deaths"]),
+            ("Current money", f"{self.money}¥"),
             ("Times fed", self.statistics["times_fed"]),
             ("Times healed", self.statistics["times_healed"]),
             ("Times cleaned", self.statistics["times_cleaned"]),
@@ -386,6 +416,7 @@ class MikuGochiApp(tk.Tk):
 
         stats = self.last_game_statistics or {
             "survived_minutes": self._current_survival_minutes(),
+            "money": self.money,
             "times_fed": self.current_game_statistics["times_fed"],
             "times_healed": self.current_game_statistics["times_healed"],
             "times_cleaned": self.current_game_statistics["times_cleaned"],
@@ -399,6 +430,7 @@ class MikuGochiApp(tk.Tk):
 
         rows = [
             ("Survived minutes", stats["survived_minutes"]),
+            ("Money", f"{stats['money']}¥"),
             ("Times fed", stats["times_fed"]),
             ("Times healed", stats["times_healed"]),
             ("Times cleaned", stats["times_cleaned"]),
@@ -527,6 +559,9 @@ class MikuGochiApp(tk.Tk):
         if self.energy_label is not None:
             self.energy_label.configure(text=f"Energy: {self.energy}/{MAX_ENERGY}")
 
+        if self.money_label is not None:
+            self.money_label.configure(text=f"Money: {self.money}¥")
+
         if self.mood_label is not None:
             self.mood_label.configure(text=f"Mood: {self._current_mood()}")
 
@@ -593,6 +628,27 @@ class MikuGochiApp(tk.Tk):
         self._update_death_countdown()
         self._save_progress()
 
+    def go_to_work(self) -> None:
+        if self.energy < WORK_ENERGY_COST:
+            self.feedback_label.configure(text="Not enough energy to work. Rest first.")
+            self._refresh_status_ui()
+            self._save_progress()
+            return
+
+        self.energy -= WORK_ENERGY_COST
+        self.money += WORK_MONEY_GAIN
+        worsened_count = 0
+        for _ in range(WORK_STATUS_TRIGGERS):
+            if self._try_worsen_random_status():
+                worsened_count += 1
+
+        self.feedback_label.configure(
+            text=f"Worked. +{WORK_MONEY_GAIN}¥; energy -{WORK_ENERGY_COST}; statuses worsened {worsened_count} time(s)."
+        )
+        self._refresh_status_ui()
+        self._update_death_countdown()
+        self._save_progress()
+
     def continue_game(self) -> None:
         self._load_save()
         if self.character_dead:
@@ -617,6 +673,7 @@ class MikuGochiApp(tk.Tk):
         self.current_game_statistics = self._new_game_statistics()
         self.last_game_statistics = None
         self.energy = MAX_ENERGY
+        self.money = STARTING_MONEY
         self.character_dead = False
         self.death_countdown_remaining = None
         self.has_save = False
@@ -630,6 +687,7 @@ class MikuGochiApp(tk.Tk):
         self.current_game_statistics = self._new_game_statistics()
         self.last_game_statistics = None
         self.energy = MAX_ENERGY
+        self.money = STARTING_MONEY
         self.character_dead = False
         self.death_countdown_remaining = None
         self.statistics["games_played"] += 1
@@ -659,6 +717,7 @@ class MikuGochiApp(tk.Tk):
         saved_current_game_statistics = data.get("current_game", {})
         saved_last_game_statistics = data.get("last_game")
         self.energy = self._load_energy(data.get("energy", MAX_ENERGY))
+        self.money = self._load_money(data.get("money", STARTING_MONEY))
         self.character_dead = bool(data.get("character_dead", False))
 
         self.statuses = {
@@ -680,6 +739,7 @@ class MikuGochiApp(tk.Tk):
         if isinstance(saved_last_game_statistics, dict):
             self.last_game_statistics = {
                 "survived_minutes": int(saved_last_game_statistics.get("survived_minutes", 0)),
+                "money": self._load_money(saved_last_game_statistics.get("money", 0)),
                 "times_fed": int(saved_last_game_statistics.get("times_fed", 0)),
                 "times_healed": int(saved_last_game_statistics.get("times_healed", 0)),
                 "times_cleaned": int(saved_last_game_statistics.get("times_cleaned", 0)),
@@ -698,6 +758,7 @@ class MikuGochiApp(tk.Tk):
             "current_game": self.current_game_statistics,
             "last_game": self.last_game_statistics,
             "energy": self.energy,
+            "money": self.money,
             "character_dead": self.character_dead,
             "sound_enabled": self.sound_enabled,
         }
@@ -811,6 +872,7 @@ class MikuGochiApp(tk.Tk):
     def _kill_character(self) -> None:
         self.last_game_statistics = {
             "survived_minutes": self._current_survival_minutes(),
+            "money": self.money,
             "times_fed": self.current_game_statistics["times_fed"],
             "times_healed": self.current_game_statistics["times_healed"],
             "times_cleaned": self.current_game_statistics["times_cleaned"],
@@ -875,6 +937,15 @@ class MikuGochiApp(tk.Tk):
             return MAX_ENERGY
 
         return min(MAX_ENERGY, max(0, energy))
+
+    @staticmethod
+    def _load_money(value: object) -> int:
+        try:
+            money = int(value)
+        except (TypeError, ValueError):
+            return STARTING_MONEY
+
+        return max(0, money)
 
     @staticmethod
     def _mci(command: str) -> bool:
