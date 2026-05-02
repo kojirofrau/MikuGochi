@@ -66,3 +66,5 @@ Mood is calculated from the total severity of all statuses. If every status reac
 Progress, lifetime statistics, current-save statistics, energy, money, inventory, the last death summary, and the sound toggle are saved to `save.json` when returning to the menu, closing the app, or changing care status.
 
 When a random status change happens, the game plays `assets/audio/notification_1.mp3` at 50% app volume. Use the upper-right speaker button to turn game sound on or off.
+
+Background music uses the `assets/audio/soundtrack_*.mp3` tracks. Tracks are selected randomly, but the same track will not play twice in a row. Background music plays at 50% of the notification volume and follows the same sound on/off button.

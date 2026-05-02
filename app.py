@@ -18,7 +18,14 @@ DEATH_COUNTDOWN_SECONDS = 30
 SAVE_FILE = Path(__file__).with_name("save.json")
 NOTIFICATION_SOUND_FILE = Path(__file__).with_name("assets") / "audio" / "notification_1.mp3"
 TIMER_SOUND_FILE = Path(__file__).with_name("assets") / "audio" / "notification_timer_1.mp3"
+SOUNDTRACK_FILES = [
+    Path(__file__).with_name("assets") / "audio" / "soundtrack_beautiful_ruin.mp3",
+    Path(__file__).with_name("assets") / "audio" / "soundtrack_love_wa_survival.mp3",
+    Path(__file__).with_name("assets") / "audio" / "soundtrack_monomi-sensei_no_kyouiku_jisshuu.mp3",
+    Path(__file__).with_name("assets") / "audio" / "soundtrack_re__beautiful_morning.mp3",
+]
 NOTIFICATION_SOUND_VOLUME = 500
+SOUNDTRACK_VOLUME = NOTIFICATION_SOUND_VOLUME // 2
 NOTIFICATION_SOUND_CLOSE_DELAY_MS = 5_000
 MAX_STATUS_SEVERITY = 3
 MAX_ENERGY = 100
@@ -112,6 +119,8 @@ class MikuGochiApp(tk.Tk):
         self.death_countdown_job: str | None = None
         self.death_countdown_remaining: int | None = None
         self.sound_close_job: str | None = None
+        self.soundtrack_next_job: str | None = None
+        self.current_soundtrack: Path | None = None
         self.screen_frame: tk.Frame | ttk.Frame | None = None
         self.tooltip_window: tk.Toplevel | None = None
 
@@ -127,6 +136,8 @@ class MikuGochiApp(tk.Tk):
         self.configure(bg="#f6f7fb")
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._load_save()
+        if self.sound_enabled:
+            self._play_next_soundtrack()
         self._show_menu()
 
     def _clear_screen(self) -> None:
@@ -645,6 +656,10 @@ class MikuGochiApp(tk.Tk):
             self._play_timer_sound()
         else:
             self._close_timer_sound()
+        if self.sound_enabled:
+            self._play_next_soundtrack()
+        else:
+            self._close_soundtrack()
         self._refresh_sound_buttons()
         self._save_progress()
 
@@ -977,6 +992,7 @@ class MikuGochiApp(tk.Tk):
         self._save_progress()
         self._close_notification_sound()
         self._close_timer_sound()
+        self._close_soundtrack()
         self.destroy()
 
     def _current_survival_minutes(self) -> int:
@@ -1026,6 +1042,73 @@ class MikuGochiApp(tk.Tk):
     def _close_timer_sound(self) -> None:
         self._mci("stop death_timer")
         self._mci("close death_timer")
+
+    def _play_next_soundtrack(self) -> None:
+        if not self.sound_enabled:
+            return
+
+        available_tracks = [path for path in SOUNDTRACK_FILES if path.exists()]
+        if not available_tracks:
+            return
+
+        choices = [
+            path for path in available_tracks
+            if self.current_soundtrack is None or path != self.current_soundtrack
+        ]
+        if not choices:
+            choices = available_tracks
+
+        track = random.choice(choices)
+        self._play_soundtrack(track)
+
+    def _play_soundtrack(self, track: Path) -> None:
+        self._close_soundtrack()
+        self.current_soundtrack = track
+        sound_path = str(track)
+
+        if not self._mci(f'open "{sound_path}" type mpegvideo alias soundtrack'):
+            self.current_soundtrack = None
+            return
+
+        self._mci(f"setaudio soundtrack volume to {SOUNDTRACK_VOLUME}")
+        if not self._mci("play soundtrack"):
+            self._close_soundtrack()
+            return
+
+        duration_ms = self._soundtrack_duration_ms()
+        if duration_ms > 0:
+            self.soundtrack_next_job = self.after(duration_ms, self._play_next_soundtrack)
+
+    def _soundtrack_duration_ms(self) -> int:
+        status_buffer = ctypes.create_unicode_buffer(64)
+        try:
+            result = ctypes.windll.winmm.mciSendStringW(
+                "status soundtrack length",
+                status_buffer,
+                len(status_buffer),
+                None,
+            )
+        except AttributeError:
+            return 0
+
+        if result != 0:
+            return 0
+
+        try:
+            return max(0, int(status_buffer.value))
+        except ValueError:
+            return 0
+
+    def _close_soundtrack(self) -> None:
+        if self.soundtrack_next_job is not None:
+            try:
+                self.after_cancel(self.soundtrack_next_job)
+            except tk.TclError:
+                pass
+            self.soundtrack_next_job = None
+
+        self._mci("stop soundtrack")
+        self._mci("close soundtrack")
 
     def _update_death_countdown(self) -> None:
         if self.character_dead:
