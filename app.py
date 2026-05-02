@@ -516,6 +516,17 @@ class MikuGochiApp(tk.Tk):
     def _schedule_status_roll(self) -> None:
         self.status_roll_job = self.after(STATUS_CHECK_INTERVAL_MS, self._roll_random_status)
 
+    def _reset_status_roll_timer(self) -> None:
+        if self.status_roll_job is not None:
+            try:
+                self.after_cancel(self.status_roll_job)
+            except tk.TclError:
+                pass
+            self.status_roll_job = None
+
+        if not self.character_dead:
+            self._schedule_status_roll()
+
     def _roll_random_status(self) -> None:
         if not self._try_worsen_random_status():
             self.feedback_label.configure(text="Nothing changed for now.")
@@ -626,6 +637,7 @@ class MikuGochiApp(tk.Tk):
         )
         self._refresh_status_ui()
         self._update_death_countdown()
+        self._reset_status_roll_timer()
         self._save_progress()
 
     def go_to_work(self) -> None:
@@ -647,6 +659,7 @@ class MikuGochiApp(tk.Tk):
         )
         self._refresh_status_ui()
         self._update_death_countdown()
+        self._reset_status_roll_timer()
         self._save_progress()
 
     def continue_game(self) -> None:

@@ -38,9 +38,9 @@ Each status has severity `0-3`. Use `Feed`, `Heal`, `Clean`, and `Entertain` to 
 
 The character starts with `100` energy and cannot go above `100`. Energy is shown in the upper-left corner of the character window, with money shown directly below it. Money starts at `0¥`.
 
-Use `Rest` to recover `10` energy. Resting is risky: it performs three status checks, each with the same 60% chance to worsen one random status.
+Use `Rest` to recover `10` energy. Resting is risky: it performs three status checks, each with the same 60% chance to worsen one random status. Resting resets the regular 20-second status timer.
 
-Use `Go to Work` to earn `2000¥`. Working costs `10` energy and performs three status checks, each with the same 60% chance to worsen one random status. If energy is below `10`, working is unavailable.
+Use `Go to Work` to earn `2000¥`. Working costs `10` energy and performs three status checks, each with the same 60% chance to worsen one random status. If energy is below `10`, working is unavailable. Working resets the regular 20-second status timer.
 
 The character window shows a text state in the center, such as `Waiting`, `Sick`, `Hungry`, `Messy`, or `Lazy`. It also shows a mood scale in the lower-left corner:
 
