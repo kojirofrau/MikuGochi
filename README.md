@@ -14,7 +14,7 @@ Or double-click `MikuGochi.pyw` to launch it without a console window.
 
 You can also double-click `run_mikugochi.bat`, which launches the same app through `pythonw`.
 
-The app opens a fixed `512x512` window. The top area is reserved for the character image and is blank for now.
+The app opens a fixed `512x640` window. The top area is reserved for the character image and is blank for now.
 
 The app starts on a menu with:
 

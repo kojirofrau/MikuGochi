@@ -7,7 +7,8 @@ import tkinter as tk
 from tkinter import ttk
 
 
-WINDOW_SIZE = 512
+WINDOW_WIDTH = 512
+WINDOW_HEIGHT = 640
 CHARACTER_AREA_HEIGHT = 340
 TOP_BUTTON_SIZE = 32
 MENU_BUTTON_WIDTH = 64
@@ -92,7 +93,7 @@ class MikuGochiApp(tk.Tk):
         super().__init__()
 
         self.title("MikuGochi Prototype")
-        self.geometry(f"{WINDOW_SIZE}x{WINDOW_SIZE}")
+        self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
         self.resizable(False, False)
 
         self.statuses = DEFAULT_STATUSES.copy()
@@ -263,7 +264,7 @@ class MikuGochiApp(tk.Tk):
 
         character_frame = tk.Frame(
             frame,
-            width=WINDOW_SIZE,
+            width=WINDOW_WIDTH,
             height=CHARACTER_AREA_HEIGHT,
             bg="#ffffff",
             highlightbackground="#c8ccd6",
