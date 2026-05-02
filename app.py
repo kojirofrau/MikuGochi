@@ -30,6 +30,36 @@ WORK_ENERGY_COST = 10
 WORK_STATUS_TRIGGERS = 3
 
 
+ITEMS = {
+    "energy_drink": {
+        "name": "Energy Drink",
+        "price": 500,
+        "description": "Restores 5 energy.",
+        "effect": {"energy": 5},
+    },
+    "medicine": {
+        "name": "Medicine",
+        "price": 1000,
+        "description": "Removes 2 points from Disease.",
+        "effect": {"status": "sickness", "amount": 2},
+    },
+    "noodles": {
+        "name": "Noodles",
+        "price": 500,
+        "description": "Removes 2 hunger.",
+        "effect": {"status": "hunger", "amount": 2},
+    },
+    "magazine": {
+        "name": "Magazine",
+        "price": 750,
+        "description": "Removes 2 laziness.",
+        "effect": {"status": "lazy", "amount": 2},
+    },
+}
+
+DEFAULT_INVENTORY = {key: 0 for key in ITEMS}
+
+
 DEFAULT_STATUSES = {
     "hunger": 0,
     "sickness": 0,
@@ -71,8 +101,10 @@ class MikuGochiApp(tk.Tk):
         self.last_game_statistics: dict[str, int] | None = None
         self.energy = MAX_ENERGY
         self.money = STARTING_MONEY
+        self.inventory = DEFAULT_INVENTORY.copy()
         self.has_save = SAVE_FILE.exists()
         self.game_started = False
+        self.game_view_mode = "normal"
         self.character_dead = False
         self.sound_enabled = True
         self.status_roll_job: str | None = None
@@ -80,6 +112,7 @@ class MikuGochiApp(tk.Tk):
         self.death_countdown_remaining: int | None = None
         self.sound_close_job: str | None = None
         self.screen_frame: tk.Frame | ttk.Frame | None = None
+        self.tooltip_window: tk.Toplevel | None = None
 
         self.status_labels: dict[str, ttk.Label] = {}
         self.energy_label: ttk.Label | None = None
@@ -115,6 +148,7 @@ class MikuGochiApp(tk.Tk):
         self.mood_label = None
         self.character_state_label = None
         self.death_timer_label = None
+        self._hide_tooltip()
 
     def _show_menu(
         self,
@@ -217,9 +251,10 @@ class MikuGochiApp(tk.Tk):
         ttk.Button(frame, text="Statistics", command=self._show_statistics).pack(fill="x", pady=6, ipady=6)
         ttk.Button(frame, text="Close", command=self._on_close).pack(fill="x", pady=6, ipady=6)
 
-    def _show_game(self) -> None:
+    def _show_game(self, mode: str = "normal") -> None:
         self._clear_screen()
         self.game_started = True
+        self.game_view_mode = mode
         self.status_labels = {}
 
         frame = tk.Frame(self, bg="#f6f7fb")
@@ -260,7 +295,7 @@ class MikuGochiApp(tk.Tk):
 
         self.character_state_label = ttk.Label(
             character_frame,
-            text="Waiting",
+            text=self._character_state_text(),
             anchor="center",
             font=("Segoe UI", 24, "bold"),
             background="#ffffff",
@@ -297,30 +332,12 @@ class MikuGochiApp(tk.Tk):
         self._add_status(status_frame, "dirty_room", "Dirt", 2)
         self._add_status(status_frame, "lazy", "Lazy", 3)
 
-        button_frame = ttk.Frame(controls_frame)
-        button_frame.pack(fill="x", pady=(18, 0))
-
-        self._add_button(button_frame, "Feed", self.feed, 0)
-        self._add_button(button_frame, "Heal", self.heal, 1)
-        self._add_button(button_frame, "Clean", self.clean, 2)
-        self._add_button(button_frame, "Entertain", self.entertain, 3)
-
-        rest_frame = ttk.Frame(controls_frame)
-        rest_frame.pack(fill="x", pady=(10, 0))
-        rest_frame.columnconfigure(0, weight=1, uniform="recovery")
-        rest_frame.columnconfigure(1, weight=1, uniform="recovery")
-        ttk.Button(rest_frame, text="Rest", command=self.rest).grid(
-            row=0,
-            column=0,
-            padx=(0, 4),
-            sticky="ew",
-        )
-        ttk.Button(rest_frame, text="Go to Work", command=self.go_to_work).grid(
-            row=0,
-            column=1,
-            padx=(4, 0),
-            sticky="ew",
-        )
+        if mode == "konbini":
+            self._add_konbini_controls(controls_frame)
+        elif mode == "inventory":
+            self._add_inventory_controls(controls_frame)
+        else:
+            self._add_normal_game_controls(controls_frame)
 
         self.feedback_label = ttk.Label(
             controls_frame,
@@ -330,8 +347,9 @@ class MikuGochiApp(tk.Tk):
         self.feedback_label.pack(fill="x", pady=(16, 0))
 
         self._refresh_status_ui()
-        self._update_death_countdown()
-        self._schedule_status_roll()
+        if mode == "normal":
+            self._update_death_countdown()
+            self._schedule_status_roll()
 
     def _show_statistics(self) -> None:
         self._clear_screen()
@@ -473,6 +491,129 @@ class MikuGochiApp(tk.Tk):
         parent.columnconfigure(column, weight=1, uniform="button")
         button = ttk.Button(parent, text=label, command=command)
         button.grid(row=0, column=column, padx=4, sticky="ew")
+
+    def _add_normal_game_controls(self, parent: ttk.Frame) -> None:
+        button_frame = ttk.Frame(parent)
+        button_frame.pack(fill="x", pady=(18, 0))
+
+        self._add_button(button_frame, "Feed", self.feed, 0)
+        self._add_button(button_frame, "Heal", self.heal, 1)
+        self._add_button(button_frame, "Clean", self.clean, 2)
+        self._add_button(button_frame, "Entertain", self.entertain, 3)
+
+        rest_frame = ttk.Frame(parent)
+        rest_frame.pack(fill="x", pady=(10, 0))
+        rest_frame.columnconfigure(0, weight=1, uniform="recovery")
+        rest_frame.columnconfigure(1, weight=1, uniform="recovery")
+        ttk.Button(rest_frame, text="Rest", command=self.rest).grid(
+            row=0,
+            column=0,
+            padx=(0, 4),
+            sticky="ew",
+        )
+        ttk.Button(rest_frame, text="Go to Work", command=self.go_to_work).grid(
+            row=0,
+            column=1,
+            padx=(4, 0),
+            sticky="ew",
+        )
+
+        visit_frame = ttk.Frame(parent)
+        visit_frame.pack(fill="x", pady=(10, 0))
+        visit_frame.columnconfigure(0, weight=1, uniform="visit")
+        visit_frame.columnconfigure(1, weight=1, uniform="visit")
+        ttk.Button(visit_frame, text="Konbini", command=self.open_konbini).grid(
+            row=0,
+            column=0,
+            padx=(0, 4),
+            sticky="ew",
+        )
+        ttk.Button(visit_frame, text="Inventory", command=self.open_inventory).grid(
+            row=0,
+            column=1,
+            padx=(4, 0),
+            sticky="ew",
+        )
+
+    def _add_konbini_controls(self, parent: ttk.Frame) -> None:
+        shop_frame = ttk.Frame(parent)
+        shop_frame.pack(fill="x", pady=(18, 0))
+        for column in range(2):
+            shop_frame.columnconfigure(column, weight=1, uniform="shop")
+
+        for index, key in enumerate(ITEMS):
+            item = ITEMS[key]
+            button = ttk.Button(
+                shop_frame,
+                text=f"{item['name']} {item['price']}¥",
+                command=lambda item_key=key: self.buy_item(item_key),
+            )
+            button.grid(
+                row=index // 2,
+                column=index % 2,
+                padx=4,
+                pady=4,
+                sticky="ew",
+            )
+            self._bind_tooltip(button, item["description"])
+
+        ttk.Button(parent, text="Return", command=self.return_to_game).pack(fill="x", pady=(14, 0))
+
+    def _add_inventory_controls(self, parent: ttk.Frame) -> None:
+        inventory_frame = ttk.Frame(parent)
+        inventory_frame.pack(fill="x", pady=(18, 0))
+        for column in range(2):
+            inventory_frame.columnconfigure(column, weight=1, uniform="inventory")
+
+        for index, key in enumerate(ITEMS):
+            item = ITEMS[key]
+            count = self.inventory.get(key, 0)
+            button = ttk.Button(
+                inventory_frame,
+                text=f"{item['name']} x{count}",
+                command=lambda item_key=key: self.use_item(item_key),
+            )
+            button.grid(
+                row=index // 2,
+                column=index % 2,
+                padx=4,
+                pady=4,
+                sticky="ew",
+            )
+            if count <= 0:
+                button.state(["disabled"])
+            self._bind_tooltip(button, item["description"])
+
+        ttk.Button(parent, text="Return", command=self.return_to_game).pack(fill="x", pady=(14, 0))
+
+    def _bind_tooltip(self, widget: tk.Widget, text: str) -> None:
+        widget.bind("<Enter>", lambda event: self._show_tooltip(event, text))
+        widget.bind("<Leave>", lambda _event: self._hide_tooltip())
+
+    def _show_tooltip(self, event: tk.Event, text: str) -> None:
+        self._hide_tooltip()
+        self.tooltip_window = tk.Toplevel(self)
+        self.tooltip_window.wm_overrideredirect(True)
+        self.tooltip_window.wm_geometry(f"+{event.x_root + 12}+{event.y_root + 12}")
+
+        label = ttk.Label(
+            self.tooltip_window,
+            text=text,
+            padding=(8, 5),
+            relief="solid",
+            borderwidth=1,
+            background="#fffbe8",
+            wraplength=220,
+        )
+        label.pack()
+
+    def _hide_tooltip(self) -> None:
+        if self.tooltip_window is not None:
+            try:
+                self.tooltip_window.destroy()
+            except tk.TclError:
+                pass
+            self.tooltip_window = None
 
     def _add_sound_button(self, parent: tk.Frame | ttk.Frame, x: int, y: int) -> None:
         button = ttk.Button(parent, image=self._sound_button_image(), command=self._toggle_sound)
@@ -625,6 +766,55 @@ class MikuGochiApp(tk.Tk):
     def entertain(self) -> None:
         self._clear_status("lazy", "times_entertained", "Entertained. Laziness reduced.", "Already entertained.")
 
+    def open_konbini(self) -> None:
+        self._save_progress()
+        self._show_game(mode="konbini")
+
+    def open_inventory(self) -> None:
+        self._save_progress()
+        self._show_game(mode="inventory")
+
+    def return_to_game(self) -> None:
+        self._save_progress()
+        self._show_game()
+
+    def buy_item(self, key: str) -> None:
+        item = ITEMS[key]
+        price = int(item["price"])
+        if self.money < price:
+            self.feedback_label.configure(text="Not enough money.")
+            self._refresh_status_ui()
+            self._save_progress()
+            return
+
+        self.money -= price
+        self.inventory[key] = self.inventory.get(key, 0) + 1
+        self.feedback_label.configure(text=f"Bought {item['name']}.")
+        self._refresh_status_ui()
+        self._save_progress()
+
+    def use_item(self, key: str) -> None:
+        if self.inventory.get(key, 0) <= 0:
+            self.feedback_label.configure(text="That item is not in inventory.")
+            self._refresh_status_ui()
+            self._save_progress()
+            return
+
+        item = ITEMS[key]
+        effect = item["effect"]
+        if "energy" in effect:
+            self.energy = min(MAX_ENERGY, self.energy + int(effect["energy"]))
+        else:
+            status_key = str(effect["status"])
+            amount = int(effect["amount"])
+            self.statuses[status_key] = max(0, self.statuses[status_key] - amount)
+
+        self.inventory[key] -= 1
+        self.feedback_label.configure(text=f"Used {item['name']}.")
+        self._refresh_status_ui()
+        self._save_progress()
+        self._show_game(mode="inventory")
+
     def rest(self) -> None:
         self.energy = min(MAX_ENERGY, self.energy + REST_ENERGY_GAIN)
         worsened_count = 0
@@ -687,6 +877,7 @@ class MikuGochiApp(tk.Tk):
         self.last_game_statistics = None
         self.energy = MAX_ENERGY
         self.money = STARTING_MONEY
+        self.inventory = DEFAULT_INVENTORY.copy()
         self.character_dead = False
         self.death_countdown_remaining = None
         self.has_save = False
@@ -701,6 +892,7 @@ class MikuGochiApp(tk.Tk):
         self.last_game_statistics = None
         self.energy = MAX_ENERGY
         self.money = STARTING_MONEY
+        self.inventory = DEFAULT_INVENTORY.copy()
         self.character_dead = False
         self.death_countdown_remaining = None
         self.statistics["games_played"] += 1
@@ -731,6 +923,7 @@ class MikuGochiApp(tk.Tk):
         saved_last_game_statistics = data.get("last_game")
         self.energy = self._load_energy(data.get("energy", MAX_ENERGY))
         self.money = self._load_money(data.get("money", STARTING_MONEY))
+        self.inventory = self._load_inventory(data.get("inventory", {}))
         self.character_dead = bool(data.get("character_dead", False))
 
         self.statuses = {
@@ -772,6 +965,7 @@ class MikuGochiApp(tk.Tk):
             "last_game": self.last_game_statistics,
             "energy": self.energy,
             "money": self.money,
+            "inventory": self.inventory,
             "character_dead": self.character_dead,
             "sound_enabled": self.sound_enabled,
         }
@@ -914,6 +1108,11 @@ class MikuGochiApp(tk.Tk):
         return "Excellent"
 
     def _character_state_text(self) -> str:
+        if self.game_view_mode == "konbini":
+            return "Seller"
+        if self.game_view_mode == "inventory":
+            return "Inventory"
+
         if self.death_countdown_remaining is not None:
             return "Critical"
 
@@ -959,6 +1158,20 @@ class MikuGochiApp(tk.Tk):
             return STARTING_MONEY
 
         return max(0, money)
+
+    @staticmethod
+    def _load_inventory(value: object) -> dict[str, int]:
+        if not isinstance(value, dict):
+            return DEFAULT_INVENTORY.copy()
+
+        inventory = DEFAULT_INVENTORY.copy()
+        for key in inventory:
+            try:
+                inventory[key] = max(0, int(value.get(key, 0)))
+            except (TypeError, ValueError):
+                inventory[key] = 0
+
+        return inventory
 
     @staticmethod
     def _mci(command: str) -> bool:
