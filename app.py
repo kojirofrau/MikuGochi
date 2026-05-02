@@ -12,6 +12,7 @@ CHARACTER_AREA_HEIGHT = 340
 TOP_BUTTON_SIZE = 32
 MENU_BUTTON_WIDTH = 64
 STATUS_CHECK_INTERVAL_MS = 20_000
+STATUS_CHANGE_CHANCE = 0.6
 DEATH_COUNTDOWN_SECONDS = 30
 SAVE_FILE = Path(__file__).with_name("save.json")
 NOTIFICATION_SOUND_FILE = Path(__file__).with_name("assets") / "audio" / "notification_1.mp3"
@@ -484,7 +485,13 @@ class MikuGochiApp(tk.Tk):
         self.status_roll_job = self.after(STATUS_CHECK_INTERVAL_MS, self._roll_random_status)
 
     def _roll_random_status(self) -> None:
-        self._worsen_random_status()
+        if random.random() < STATUS_CHANGE_CHANCE:
+            self._worsen_random_status()
+        else:
+            self.feedback_label.configure(text="Nothing changed for now.")
+            self._refresh_status_ui()
+            self._save_progress()
+
         self._update_death_countdown()
 
         if not self.character_dead:
