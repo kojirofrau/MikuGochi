@@ -101,7 +101,11 @@ class MikuGochiApp(tk.Tk):
         self.character_state_label = None
         self.death_timer_label = None
 
-    def _show_menu(self, show_new_game_warning: bool = False) -> None:
+    def _show_menu(
+        self,
+        show_new_game_warning: bool = False,
+        show_reset_warning: bool = False,
+    ) -> None:
         self._clear_screen()
         show_new_game_warning = show_new_game_warning and self.has_save
 
@@ -109,6 +113,7 @@ class MikuGochiApp(tk.Tk):
         frame.pack(fill="both", expand=True)
         self.screen_frame = frame
 
+        self._add_reset_button(frame, x=8, y=0)
         self._add_sound_button(frame, x=-8, y=0)
 
         ttk.Label(
@@ -163,7 +168,39 @@ class MikuGochiApp(tk.Tk):
         else:
             ttk.Button(frame, text="New Game", command=self.new_game).pack(fill="x", pady=6, ipady=6)
 
+        if show_reset_warning:
+            warning_frame = ttk.Frame(frame, padding=(0, 10, 0, 0))
+            warning_frame.pack(fill="x")
+
+            ttk.Label(
+                warning_frame,
+                text="Reset progress will delete the current save and all statistics. Continue?",
+                anchor="center",
+                wraplength=360,
+            ).pack(fill="x", pady=(0, 8))
+
+            choice_frame = ttk.Frame(warning_frame)
+            choice_frame.pack(fill="x", pady=6)
+            choice_frame.columnconfigure(0, weight=1, uniform="reset_choice")
+            choice_frame.columnconfigure(1, weight=1, uniform="reset_choice")
+
+            ttk.Button(choice_frame, text="Reset", command=self._reset_progress).grid(
+                row=0,
+                column=0,
+                padx=(0, 4),
+                sticky="ew",
+                ipady=6,
+            )
+            ttk.Button(choice_frame, text="Cancel", command=self._show_menu).grid(
+                row=0,
+                column=1,
+                padx=(4, 0),
+                sticky="ew",
+                ipady=6,
+            )
+
         ttk.Button(frame, text="Statistics", command=self._show_statistics).pack(fill="x", pady=6, ipady=6)
+        ttk.Button(frame, text="Close", command=self._on_close).pack(fill="x", pady=6, ipady=6)
 
     def _show_game(self) -> None:
         self._clear_screen()
@@ -393,6 +430,10 @@ class MikuGochiApp(tk.Tk):
         button = ttk.Button(parent, text="Menu", command=self._save_and_show_menu)
         self._place_top_button(button, x, y, MENU_BUTTON_WIDTH)
 
+    def _add_reset_button(self, parent: tk.Frame | ttk.Frame, x: int, y: int) -> None:
+        button = ttk.Button(parent, text="Reset", command=self._show_reset_warning)
+        button.place(x=x, y=y, width=MENU_BUTTON_WIDTH, height=TOP_BUTTON_SIZE, anchor="nw")
+
     def _place_top_button(self, button: ttk.Button, x: int, y: int, width: int) -> None:
         button.place(
             relx=1.0,
@@ -505,6 +546,22 @@ class MikuGochiApp(tk.Tk):
             return
 
         self._start_new_game()
+
+    def _show_reset_warning(self) -> None:
+        self._show_menu(show_reset_warning=True)
+
+    def _reset_progress(self) -> None:
+        self.statuses = DEFAULT_STATUSES.copy()
+        self.statistics = DEFAULT_STATISTICS.copy()
+        self.current_game_statistics = self._new_game_statistics()
+        self.last_game_statistics = None
+        self.character_dead = False
+        self.death_countdown_remaining = None
+        self.has_save = False
+        self.game_started = False
+        if SAVE_FILE.exists():
+            SAVE_FILE.unlink()
+        self._show_menu()
 
     def _start_new_game(self) -> None:
         self.statuses = DEFAULT_STATUSES.copy()

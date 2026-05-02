@@ -21,8 +21,11 @@ The app starts on a menu with:
 - Continue
 - New Game
 - Statistics
+- Close
 
-Continue loads the current save. New Game shows an in-window warning before deleting old progress, keeps lifetime statistics, and starts a fresh game. Statistics shows total games played, character deaths, successful feed/heal/clean counts, and the last death summary when available. When the character dies, the game shows a Game Over screen with the current save's stats and buttons for starting a new game or returning to the menu.
+The upper-left `Reset` button shows an in-window warning before deleting the current save and all lifetime statistics.
+
+Continue loads the current save. New Game shows an in-window warning before deleting old progress, keeps lifetime statistics, and starts a fresh game. Statistics shows total games played, character deaths, successful feed/heal/clean/entertain counts, and the last death summary when available. Close exits the game. When the character dies, the game shows a Game Over screen with the current save's stats and buttons for starting a new game or returning to the menu.
 
 Every 20 seconds, one status that is not already maxed can randomly worsen by one severity level:
 
