@@ -1,0 +1,27 @@
+{
+  "statuses": {
+    "hunger": 1,
+    "sickness": 0,
+    "dirty_room": 0,
+    "lazy": 3
+  },
+  "statistics": {
+    "games_played": 1,
+    "character_deaths": 0,
+    "times_fed": 2,
+    "times_healed": 3,
+    "times_cleaned": 1,
+    "times_entertained": 1
+  },
+  "current_game": {
+    "started_at": 1777742155,
+    "times_fed": 2,
+    "times_healed": 3,
+    "times_cleaned": 1,
+    "times_entertained": 1
+  },
+  "last_game": null,
+  "energy": 90,
+  "character_dead": false,
+  "sound_enabled": true
+}

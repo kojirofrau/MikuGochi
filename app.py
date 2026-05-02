@@ -19,6 +19,10 @@ TIMER_SOUND_FILE = Path(__file__).with_name("assets") / "audio" / "notification_
 NOTIFICATION_SOUND_VOLUME = 500
 NOTIFICATION_SOUND_CLOSE_DELAY_MS = 5_000
 MAX_STATUS_SEVERITY = 3
+MAX_ENERGY = 100
+CARE_ACTION_ENERGY_COST = 5
+REST_ENERGY_GAIN = 10
+REST_STATUS_TRIGGERS = 3
 
 
 DEFAULT_STATUSES = {
@@ -60,6 +64,7 @@ class MikuGochiApp(tk.Tk):
         self.statistics = DEFAULT_STATISTICS.copy()
         self.current_game_statistics = self._new_game_statistics()
         self.last_game_statistics: dict[str, int] | None = None
+        self.energy = MAX_ENERGY
         self.has_save = SAVE_FILE.exists()
         self.game_started = False
         self.character_dead = False
@@ -71,6 +76,7 @@ class MikuGochiApp(tk.Tk):
         self.screen_frame: tk.Frame | ttk.Frame | None = None
 
         self.status_labels: dict[str, ttk.Label] = {}
+        self.energy_label: ttk.Label | None = None
         self.mood_label: ttk.Label | None = None
         self.character_state_label: ttk.Label | None = None
         self.death_timer_label: ttk.Label | None = None
@@ -97,6 +103,7 @@ class MikuGochiApp(tk.Tk):
             self.screen_frame = None
 
         self.sound_buttons = []
+        self.energy_label = None
         self.mood_label = None
         self.character_state_label = None
         self.death_timer_label = None
@@ -225,6 +232,15 @@ class MikuGochiApp(tk.Tk):
         self._add_menu_button(character_frame, x=-12, y=12)
         self._add_sound_button(character_frame, x=-(12 + MENU_BUTTON_WIDTH + 8), y=12)
 
+        self.energy_label = ttk.Label(
+            character_frame,
+            text=f"Energy: {self.energy}/{MAX_ENERGY}",
+            anchor="w",
+            font=("Segoe UI", 11, "bold"),
+            background="#ffffff",
+        )
+        self.energy_label.place(x=14, y=14, anchor="nw")
+
         self.character_state_label = ttk.Label(
             character_frame,
             text="Waiting",
@@ -271,6 +287,10 @@ class MikuGochiApp(tk.Tk):
         self._add_button(button_frame, "Heal", self.heal, 1)
         self._add_button(button_frame, "Clean", self.clean, 2)
         self._add_button(button_frame, "Entertain", self.entertain, 3)
+
+        rest_frame = ttk.Frame(controls_frame)
+        rest_frame.pack(fill="x", pady=(10, 0))
+        ttk.Button(rest_frame, text="Rest", command=self.rest).pack(fill="x")
 
         self.feedback_label = ttk.Label(
             controls_frame,
@@ -464,6 +484,13 @@ class MikuGochiApp(tk.Tk):
         self.status_roll_job = self.after(STATUS_CHECK_INTERVAL_MS, self._roll_random_status)
 
     def _roll_random_status(self) -> None:
+        self._worsen_random_status()
+        self._update_death_countdown()
+
+        if not self.character_dead:
+            self._schedule_status_roll()
+
+    def _worsen_random_status(self) -> bool:
         available_statuses = [
             key for key, severity in self.statuses.items() if severity < MAX_STATUS_SEVERITY
         ]
@@ -477,16 +504,17 @@ class MikuGochiApp(tk.Tk):
             self._refresh_status_ui()
             self._play_notification_sound()
             self._save_progress()
+            return True
 
-        self._update_death_countdown()
-
-        if not self.character_dead:
-            self._schedule_status_roll()
+        return False
 
     def _refresh_status_ui(self) -> None:
         for key, label in self.status_labels.items():
             severity = self.statuses[key]
             label.configure(text="OK" if severity == 0 else f"{severity}/{MAX_STATUS_SEVERITY}")
+
+        if self.energy_label is not None:
+            self.energy_label.configure(text=f"Energy: {self.energy}/{MAX_ENERGY}")
 
         if self.mood_label is not None:
             self.mood_label.configure(text=f"Mood: {self._current_mood()}")
@@ -507,8 +535,15 @@ class MikuGochiApp(tk.Tk):
         clear_message: str,
         idle_message: str,
     ) -> None:
+        if self.energy < CARE_ACTION_ENERGY_COST:
+            self.feedback_label.configure(text="Not enough energy. Rest first.")
+            self._refresh_status_ui()
+            self._save_progress()
+            return
+
         if self.statuses[key]:
-            self.statuses[key] = 0
+            self.energy -= CARE_ACTION_ENERGY_COST
+            self.statuses[key] = max(0, self.statuses[key] - 1)
             self.statistics[statistic_key] += 1
             self.current_game_statistics[statistic_key] += 1
             self.feedback_label.configure(text=clear_message)
@@ -518,19 +553,34 @@ class MikuGochiApp(tk.Tk):
             return
 
         self.feedback_label.configure(text=idle_message)
+        self._refresh_status_ui()
         self._save_progress()
 
     def feed(self) -> None:
-        self._clear_status("hunger", "times_fed", "Fed. Hunger cleared.", "Not hungry right now.")
+        self._clear_status("hunger", "times_fed", "Fed. Hunger reduced.", "Not hungry right now.")
 
     def heal(self) -> None:
-        self._clear_status("sickness", "times_healed", "Healed. Health restored.", "Already healthy.")
+        self._clear_status("sickness", "times_healed", "Healed. Health improved.", "Already healthy.")
 
     def clean(self) -> None:
-        self._clear_status("dirty_room", "times_cleaned", "Cleaned. Dirt cleared.", "Room is already clean.")
+        self._clear_status("dirty_room", "times_cleaned", "Cleaned. Dirt reduced.", "Room is already clean.")
 
     def entertain(self) -> None:
-        self._clear_status("lazy", "times_entertained", "Entertained. Laziness cleared.", "Already entertained.")
+        self._clear_status("lazy", "times_entertained", "Entertained. Laziness reduced.", "Already entertained.")
+
+    def rest(self) -> None:
+        self.energy = min(MAX_ENERGY, self.energy + REST_ENERGY_GAIN)
+        worsened_count = 0
+        for _ in range(REST_STATUS_TRIGGERS):
+            if self._worsen_random_status():
+                worsened_count += 1
+
+        self.feedback_label.configure(
+            text=f"Rested. Energy +{REST_ENERGY_GAIN}; statuses worsened {worsened_count} time(s)."
+        )
+        self._refresh_status_ui()
+        self._update_death_countdown()
+        self._save_progress()
 
     def continue_game(self) -> None:
         self._load_save()
@@ -555,6 +605,7 @@ class MikuGochiApp(tk.Tk):
         self.statistics = DEFAULT_STATISTICS.copy()
         self.current_game_statistics = self._new_game_statistics()
         self.last_game_statistics = None
+        self.energy = MAX_ENERGY
         self.character_dead = False
         self.death_countdown_remaining = None
         self.has_save = False
@@ -567,6 +618,7 @@ class MikuGochiApp(tk.Tk):
         self.statuses = DEFAULT_STATUSES.copy()
         self.current_game_statistics = self._new_game_statistics()
         self.last_game_statistics = None
+        self.energy = MAX_ENERGY
         self.character_dead = False
         self.death_countdown_remaining = None
         self.statistics["games_played"] += 1
@@ -595,6 +647,7 @@ class MikuGochiApp(tk.Tk):
         saved_statistics = data.get("statistics", {})
         saved_current_game_statistics = data.get("current_game", {})
         saved_last_game_statistics = data.get("last_game")
+        self.energy = self._load_energy(data.get("energy", MAX_ENERGY))
         self.character_dead = bool(data.get("character_dead", False))
 
         self.statuses = {
@@ -633,6 +686,7 @@ class MikuGochiApp(tk.Tk):
             "statistics": self.statistics,
             "current_game": self.current_game_statistics,
             "last_game": self.last_game_statistics,
+            "energy": self.energy,
             "character_dead": self.character_dead,
             "sound_enabled": self.sound_enabled,
         }
@@ -801,6 +855,15 @@ class MikuGochiApp(tk.Tk):
             return 0
 
         return min(MAX_STATUS_SEVERITY, max(0, severity))
+
+    @staticmethod
+    def _load_energy(value: object) -> int:
+        try:
+            energy = int(value)
+        except (TypeError, ValueError):
+            return MAX_ENERGY
+
+        return min(MAX_ENERGY, max(0, energy))
 
     @staticmethod
     def _mci(command: str) -> bool:

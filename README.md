@@ -34,7 +34,9 @@ Every 20 seconds, one status that is not already maxed can randomly worsen by on
 - Dirt
 - Lazy
 
-Each status has severity `0-3`. Use `Feed`, `Heal`, `Clean`, and `Entertain` to reset the matching status to `0`.
+Each status has severity `0-3`. Use `Feed`, `Heal`, `Clean`, and `Entertain` to reduce the matching status by one point. Each care action costs `5` energy.
+
+The character starts with `100` energy and cannot go above `100`. Energy is shown in the upper-left corner of the character window. Use `Rest` to recover `10` energy. Resting is risky: it triggers random status worsening three times.
 
 The character window shows a text state in the center, such as `Waiting`, `Sick`, `Hungry`, `Messy`, or `Lazy`. It also shows a mood scale in the lower-left corner:
 
@@ -46,6 +48,6 @@ The character window shows a text state in the center, such as `Waiting`, `Sick`
 
 Mood is calculated from the total severity of all statuses. If every status reaches severity `3`, a death countdown starts. During the countdown, `assets/audio/notification_timer_1.mp3` loops until the player clears a status or the countdown reaches zero.
 
-Progress, lifetime statistics, current-save statistics, the last death summary, and the sound toggle are saved to `save.json` when returning to the menu, closing the app, or changing care status.
+Progress, lifetime statistics, current-save statistics, energy, the last death summary, and the sound toggle are saved to `save.json` when returning to the menu, closing the app, or changing care status.
 
 When a random status change happens, the game plays `assets/audio/notification_1.mp3` at 50% app volume. Use the upper-right speaker button to turn game sound on or off.
