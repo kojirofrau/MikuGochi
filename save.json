@@ -1,28 +1,34 @@
 {
   "statuses": {
-    "hunger": 1,
+    "hunger": 0,
     "sickness": 0,
     "dirty_room": 0,
-    "lazy": 1
+    "lazy": 0
   },
   "statistics": {
-    "games_played": 3,
+    "games_played": 4,
     "character_deaths": 1,
-    "times_fed": 3,
-    "times_healed": 3,
-    "times_cleaned": 2,
-    "times_entertained": 2
+    "times_fed": 4,
+    "times_healed": 7,
+    "times_cleaned": 3,
+    "times_entertained": 7
   },
   "current_game": {
-    "started_at": 1777783583,
-    "times_fed": 3,
-    "times_healed": 3,
-    "times_cleaned": 2,
-    "times_entertained": 2
+    "started_at": 1777784288,
+    "times_fed": 1,
+    "times_healed": 4,
+    "times_cleaned": 1,
+    "times_entertained": 5,
+    "times_rested": 4,
+    "times_worked": 2,
+    "items_bought": 6,
+    "items_used": 3,
+    "money_earned": 4000
   },
   "last_game": null,
-  "energy": 85,
-  "money": 2250,
+  "leaderboard": [],
+  "energy": 80,
+  "money": 250,
   "inventory": {
     "energy_drink": 0,
     "medicine": 1,

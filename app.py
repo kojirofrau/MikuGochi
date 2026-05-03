@@ -40,6 +40,13 @@ STARTING_MONEY = 0
 WORK_MONEY_GAIN = 2000
 WORK_ENERGY_COST = 10
 WORK_STATUS_TRIGGERS = 3
+LEADERBOARD_LIMIT = 5
+SCORE_PER_SURVIVAL_MINUTE = 10
+SCORE_PER_CARE_ACTION = 50
+SCORE_PER_REST = 15
+SCORE_PER_WORK = 25
+SCORE_PER_ITEM = 20
+SCORE_MONEY_DIVISOR = 100
 
 
 ITEMS = {
@@ -96,6 +103,11 @@ DEFAULT_GAME_STATISTICS = {
     "times_healed": 0,
     "times_cleaned": 0,
     "times_entertained": 0,
+    "times_rested": 0,
+    "times_worked": 0,
+    "items_bought": 0,
+    "items_used": 0,
+    "money_earned": 0,
 }
 
 
@@ -111,6 +123,7 @@ class MikuGochiApp(tk.Tk):
         self.statistics = DEFAULT_STATISTICS.copy()
         self.current_game_statistics = self._new_game_statistics()
         self.last_game_statistics: dict[str, int] | None = None
+        self.leaderboard: list[dict[str, int]] = []
         self.energy = MAX_ENERGY
         self.money = STARTING_MONEY
         self.inventory = DEFAULT_INVENTORY.copy()
@@ -135,6 +148,7 @@ class MikuGochiApp(tk.Tk):
         self.status_labels: dict[str, ttk.Label] = {}
         self.energy_label: ttk.Label | None = None
         self.money_label: ttk.Label | None = None
+        self.score_label: ttk.Label | None = None
         self.mood_label: ttk.Label | None = None
         self.character_state_label: ttk.Label | None = None
         self.death_timer_label: ttk.Label | None = None
@@ -164,6 +178,7 @@ class MikuGochiApp(tk.Tk):
         self.sound_buttons = []
         self.energy_label = None
         self.money_label = None
+        self.score_label = None
         self.mood_label = None
         self.character_state_label = None
         self.death_timer_label = None
@@ -268,6 +283,7 @@ class MikuGochiApp(tk.Tk):
             )
 
         ttk.Button(frame, text="Statistics", command=self._show_statistics).pack(fill="x", pady=6, ipady=6)
+        ttk.Button(frame, text="Top Scores", command=self._show_top_scores).pack(fill="x", pady=6, ipady=6)
         ttk.Button(frame, text="Close", command=self._on_close).pack(fill="x", pady=6, ipady=6)
 
     def _show_game(self, mode: str = "normal") -> None:
@@ -311,6 +327,15 @@ class MikuGochiApp(tk.Tk):
             background="#ffffff",
         )
         self.money_label.place(x=14, y=38, anchor="nw")
+
+        self.score_label = ttk.Label(
+            character_frame,
+            text=f"Score: {self._current_score()}",
+            anchor="w",
+            font=("Segoe UI", 11, "bold"),
+            background="#ffffff",
+        )
+        self.score_label.place(x=14, y=62, anchor="nw")
 
         self.character_state_label = ttk.Label(
             character_frame,
@@ -393,6 +418,7 @@ class MikuGochiApp(tk.Tk):
         rows = [
             ("Total games played", self.statistics["games_played"]),
             ("Character deaths", self.statistics["character_deaths"]),
+            ("Current score", self._current_score()),
             ("Current money", f"{self.money}¥"),
             ("Times fed", self.statistics["times_fed"]),
             ("Times healed", self.statistics["times_healed"]),
@@ -403,6 +429,7 @@ class MikuGochiApp(tk.Tk):
         if self.last_game_statistics is not None:
             rows.extend(
                 [
+                    ("Last score", self.last_game_statistics["score"]),
                     ("Last survival minutes", self.last_game_statistics["survived_minutes"]),
                     ("Last times fed", self.last_game_statistics["times_fed"]),
                     ("Last times healed", self.last_game_statistics["times_healed"]),
@@ -425,6 +452,72 @@ class MikuGochiApp(tk.Tk):
         ttk.Label(
             frame,
             text="Progress and statistics are saved when returning to the menu or closing the app.",
+            anchor="center",
+            wraplength=400,
+        ).pack(fill="x", pady=(8, 0))
+
+    def _show_top_scores(self) -> None:
+        self._clear_screen()
+
+        frame = tk.Frame(self, bg="#f6f7fb", padx=32, pady=24)
+        frame.pack(fill="both", expand=True)
+        self.screen_frame = frame
+
+        self._add_menu_button(frame, x=-8, y=0)
+        self._add_sound_button(frame, x=-(8 + MENU_BUTTON_WIDTH + 8), y=0)
+
+        ttk.Label(
+            frame,
+            text="Top Scores",
+            anchor="center",
+            font=("Segoe UI", 24, "bold"),
+        ).pack(fill="x", pady=(34, 22))
+
+        scores_frame = ttk.Frame(frame)
+        scores_frame.pack(fill="x", pady=(0, 20))
+        for column in range(4):
+            scores_frame.columnconfigure(column, weight=1 if column == 1 else 0)
+
+        headers = ("#", "Score", "Minutes", "Money")
+        for column, header in enumerate(headers):
+            ttk.Label(scores_frame, text=header, font=("Segoe UI", 10, "bold")).grid(
+                row=0,
+                column=column,
+                sticky="e" if column else "w",
+                padx=(0, 12),
+                pady=(0, 8),
+            )
+
+        if not self.leaderboard:
+            ttk.Label(
+                scores_frame,
+                text="No scores yet. They are recorded after a game over.",
+                anchor="center",
+            ).grid(row=1, column=0, columnspan=4, sticky="ew", pady=24)
+        else:
+            for row, entry in enumerate(self.leaderboard, start=1):
+                values = (
+                    row,
+                    entry["score"],
+                    entry["survived_minutes"],
+                    f"{entry['money']}¥",
+                )
+                for column, value in enumerate(values):
+                    ttk.Label(
+                        scores_frame,
+                        text=str(value),
+                        font=("Segoe UI", 11, "bold") if column == 1 else ("Segoe UI", 10),
+                    ).grid(
+                        row=row,
+                        column=column,
+                        sticky="e" if column else "w",
+                        padx=(0, 12),
+                        pady=7,
+                    )
+
+        ttk.Label(
+            frame,
+            text="Score = survival time, care actions, work, items, and total money earned.",
             anchor="center",
             wraplength=400,
         ).pack(fill="x", pady=(8, 0))
@@ -458,7 +551,13 @@ class MikuGochiApp(tk.Tk):
             "times_healed": self.current_game_statistics["times_healed"],
             "times_cleaned": self.current_game_statistics["times_cleaned"],
             "times_entertained": self.current_game_statistics["times_entertained"],
+            "times_rested": self.current_game_statistics["times_rested"],
+            "times_worked": self.current_game_statistics["times_worked"],
+            "items_bought": self.current_game_statistics["items_bought"],
+            "items_used": self.current_game_statistics["items_used"],
+            "money_earned": self.current_game_statistics["money_earned"],
         }
+        stats["score"] = self._calculate_score(stats)
 
         stats_frame = ttk.Frame(frame)
         stats_frame.pack(fill="x", pady=(0, 20))
@@ -466,8 +565,10 @@ class MikuGochiApp(tk.Tk):
         stats_frame.columnconfigure(1, weight=0)
 
         rows = [
+            ("Score", stats["score"]),
             ("Survived minutes", stats["survived_minutes"]),
             ("Money", f"{stats['money']}¥"),
+            ("Money earned", f"{stats['money_earned']}¥"),
             ("Times fed", stats["times_fed"]),
             ("Times healed", stats["times_healed"]),
             ("Times cleaned", stats["times_cleaned"]),
@@ -737,6 +838,9 @@ class MikuGochiApp(tk.Tk):
         if self.money_label is not None:
             self.money_label.configure(text=f"Money: {self.money}¥")
 
+        if self.score_label is not None:
+            self.score_label.configure(text=f"Score: {self._current_score()}")
+
         if self.mood_label is not None:
             self.mood_label.configure(text=f"Mood: {self._current_mood()}")
 
@@ -812,6 +916,7 @@ class MikuGochiApp(tk.Tk):
 
         self.money -= price
         self.inventory[key] = self.inventory.get(key, 0) + 1
+        self.current_game_statistics["items_bought"] += 1
         self.feedback_label.configure(text=f"Bought {item['name']}.")
         self._refresh_status_ui()
         self._save_progress()
@@ -833,6 +938,7 @@ class MikuGochiApp(tk.Tk):
             self.statuses[status_key] = max(0, self.statuses[status_key] - amount)
 
         self.inventory[key] -= 1
+        self.current_game_statistics["items_used"] += 1
         self.feedback_label.configure(text=f"Used {item['name']}.")
         self._refresh_status_ui()
         self._save_progress()
@@ -840,6 +946,7 @@ class MikuGochiApp(tk.Tk):
 
     def rest(self) -> None:
         self.energy = min(MAX_ENERGY, self.energy + REST_ENERGY_GAIN)
+        self.current_game_statistics["times_rested"] += 1
         worsened_count = 0
         for _ in range(REST_STATUS_TRIGGERS):
             if self._try_worsen_random_status():
@@ -862,6 +969,8 @@ class MikuGochiApp(tk.Tk):
 
         self.energy -= WORK_ENERGY_COST
         self.money += WORK_MONEY_GAIN
+        self.current_game_statistics["times_worked"] += 1
+        self.current_game_statistics["money_earned"] += WORK_MONEY_GAIN
         worsened_count = 0
         for _ in range(WORK_STATUS_TRIGGERS):
             if self._try_worsen_random_status():
@@ -898,6 +1007,7 @@ class MikuGochiApp(tk.Tk):
         self.statistics = DEFAULT_STATISTICS.copy()
         self.current_game_statistics = self._new_game_statistics()
         self.last_game_statistics = None
+        self.leaderboard = []
         self.energy = MAX_ENERGY
         self.money = STARTING_MONEY
         self.inventory = DEFAULT_INVENTORY.copy()
@@ -944,6 +1054,7 @@ class MikuGochiApp(tk.Tk):
         saved_statistics = data.get("statistics", {})
         saved_current_game_statistics = data.get("current_game", {})
         saved_last_game_statistics = data.get("last_game")
+        saved_leaderboard = data.get("leaderboard", [])
         self.energy = self._load_energy(data.get("energy", MAX_ENERGY))
         self.money = self._load_money(data.get("money", STARTING_MONEY))
         self.inventory = self._load_inventory(data.get("inventory", {}))
@@ -973,7 +1084,19 @@ class MikuGochiApp(tk.Tk):
                 "times_healed": int(saved_last_game_statistics.get("times_healed", 0)),
                 "times_cleaned": int(saved_last_game_statistics.get("times_cleaned", 0)),
                 "times_entertained": int(saved_last_game_statistics.get("times_entertained", 0)),
+                "times_rested": int(saved_last_game_statistics.get("times_rested", 0)),
+                "times_worked": int(saved_last_game_statistics.get("times_worked", 0)),
+                "items_bought": int(saved_last_game_statistics.get("items_bought", 0)),
+                "items_used": int(saved_last_game_statistics.get("items_used", 0)),
+                "money_earned": self._load_money(saved_last_game_statistics.get("money_earned", 0)),
             }
+            self.last_game_statistics["score"] = int(
+                saved_last_game_statistics.get(
+                    "score",
+                    self._calculate_score(self.last_game_statistics),
+                )
+            )
+        self.leaderboard = self._load_leaderboard(saved_leaderboard)
         self.sound_enabled = bool(data.get("sound_enabled", True))
         self.has_save = True
 
@@ -986,6 +1109,7 @@ class MikuGochiApp(tk.Tk):
             "statistics": self.statistics,
             "current_game": self.current_game_statistics,
             "last_game": self.last_game_statistics,
+            "leaderboard": self.leaderboard,
             "energy": self.energy,
             "money": self.money,
             "inventory": self.inventory,
@@ -1004,6 +1128,15 @@ class MikuGochiApp(tk.Tk):
 
     def _current_survival_minutes(self) -> int:
         return max(0, int((time.time() - self.current_game_statistics["started_at"]) // 60))
+
+    def _current_score(self) -> int:
+        return self._calculate_score(
+            {
+                **self.current_game_statistics,
+                "survived_minutes": self._current_survival_minutes(),
+                "money": self.money,
+            }
+        )
 
     def _play_notification_sound(self) -> None:
         if not self.sound_enabled or not NOTIFICATION_SOUND_FILE.exists():
@@ -1346,7 +1479,14 @@ $player.Close()
             "times_healed": self.current_game_statistics["times_healed"],
             "times_cleaned": self.current_game_statistics["times_cleaned"],
             "times_entertained": self.current_game_statistics["times_entertained"],
+            "times_rested": self.current_game_statistics["times_rested"],
+            "times_worked": self.current_game_statistics["times_worked"],
+            "items_bought": self.current_game_statistics["items_bought"],
+            "items_used": self.current_game_statistics["items_used"],
+            "money_earned": self.current_game_statistics["money_earned"],
         }
+        self.last_game_statistics["score"] = self._calculate_score(self.last_game_statistics)
+        self._record_leaderboard_score(self.last_game_statistics)
         self.statistics["character_deaths"] += 1
         self.character_dead = True
         self._close_timer_sound()
@@ -1420,6 +1560,91 @@ $player.Close()
             return STARTING_MONEY
 
         return max(0, money)
+
+    @staticmethod
+    def _calculate_score(stats: dict[str, int]) -> int:
+        care_actions = (
+            int(stats.get("times_fed", 0))
+            + int(stats.get("times_healed", 0))
+            + int(stats.get("times_cleaned", 0))
+            + int(stats.get("times_entertained", 0))
+        )
+        support_actions = (
+            int(stats.get("times_rested", 0)) * SCORE_PER_REST
+            + int(stats.get("times_worked", 0)) * SCORE_PER_WORK
+            + int(stats.get("items_bought", 0)) * SCORE_PER_ITEM
+            + int(stats.get("items_used", 0)) * SCORE_PER_ITEM
+        )
+        money_score = int(stats.get("money_earned", 0)) // SCORE_MONEY_DIVISOR
+
+        return max(
+            0,
+            int(stats.get("survived_minutes", 0)) * SCORE_PER_SURVIVAL_MINUTE
+            + care_actions * SCORE_PER_CARE_ACTION
+            + support_actions
+            + money_score,
+        )
+
+    def _record_leaderboard_score(self, stats: dict[str, int]) -> None:
+        entry = {
+            "score": int(stats.get("score", self._calculate_score(stats))),
+            "survived_minutes": int(stats.get("survived_minutes", 0)),
+            "money": self._load_money(stats.get("money", 0)),
+            "money_earned": self._load_money(stats.get("money_earned", 0)),
+            "times_fed": int(stats.get("times_fed", 0)),
+            "times_healed": int(stats.get("times_healed", 0)),
+            "times_cleaned": int(stats.get("times_cleaned", 0)),
+            "times_entertained": int(stats.get("times_entertained", 0)),
+            "times_rested": int(stats.get("times_rested", 0)),
+            "times_worked": int(stats.get("times_worked", 0)),
+            "items_bought": int(stats.get("items_bought", 0)),
+            "items_used": int(stats.get("items_used", 0)),
+        }
+        self.leaderboard.append(entry)
+        self.leaderboard.sort(
+            key=lambda score: (
+                score["score"],
+                score["survived_minutes"],
+                score["money_earned"],
+            ),
+            reverse=True,
+        )
+        self.leaderboard = self.leaderboard[:LEADERBOARD_LIMIT]
+
+    def _load_leaderboard(self, value: object) -> list[dict[str, int]]:
+        if not isinstance(value, list):
+            return []
+
+        leaderboard: list[dict[str, int]] = []
+        for raw_entry in value:
+            if not isinstance(raw_entry, dict):
+                continue
+
+            entry = {
+                "survived_minutes": max(0, int(raw_entry.get("survived_minutes", 0))),
+                "money": self._load_money(raw_entry.get("money", 0)),
+                "money_earned": self._load_money(raw_entry.get("money_earned", 0)),
+                "times_fed": max(0, int(raw_entry.get("times_fed", 0))),
+                "times_healed": max(0, int(raw_entry.get("times_healed", 0))),
+                "times_cleaned": max(0, int(raw_entry.get("times_cleaned", 0))),
+                "times_entertained": max(0, int(raw_entry.get("times_entertained", 0))),
+                "times_rested": max(0, int(raw_entry.get("times_rested", 0))),
+                "times_worked": max(0, int(raw_entry.get("times_worked", 0))),
+                "items_bought": max(0, int(raw_entry.get("items_bought", 0))),
+                "items_used": max(0, int(raw_entry.get("items_used", 0))),
+            }
+            entry["score"] = max(0, int(raw_entry.get("score", self._calculate_score(entry))))
+            leaderboard.append(entry)
+
+        leaderboard.sort(
+            key=lambda score: (
+                score["score"],
+                score["survived_minutes"],
+                score["money_earned"],
+            ),
+            reverse=True,
+        )
+        return leaderboard[:LEADERBOARD_LIMIT]
 
     @staticmethod
     def _load_inventory(value: object) -> dict[str, int]:
