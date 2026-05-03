@@ -2,28 +2,28 @@
   "statuses": {
     "hunger": 1,
     "sickness": 0,
-    "dirty_room": 0,
+    "dirty_room": 1,
     "lazy": 1
   },
   "statistics": {
     "games_played": 14,
     "character_deaths": 5,
-    "times_fed": 17,
+    "times_fed": 19,
     "times_healed": 16,
-    "times_cleaned": 10,
-    "times_entertained": 13
+    "times_cleaned": 13,
+    "times_entertained": 15
   },
   "current_game": {
     "started_at": 1777794108,
-    "times_fed": 0,
+    "times_fed": 2,
     "times_healed": 0,
-    "times_cleaned": 0,
-    "times_entertained": 0,
-    "times_rested": 0,
-    "times_worked": 0,
-    "items_bought": 0,
+    "times_cleaned": 3,
+    "times_entertained": 2,
+    "times_rested": 3,
+    "times_worked": 2,
+    "items_bought": 3,
     "items_used": 0,
-    "money_earned": 0
+    "money_earned": 4000
   },
   "last_game": null,
   "leaderboard": [
@@ -88,20 +88,20 @@
       "score": 290
     }
   ],
-  "energy": 100,
-  "money": 0,
+  "energy": 75,
+  "money": 2250,
   "inventory": {
-    "energy_drink": 0,
+    "energy_drink": 1,
     "medicine": 0,
-    "noodles": 0,
-    "magazine": 0
+    "noodles": 1,
+    "magazine": 1
   },
   "character_dead": false,
   "current_character": "kaito",
-  "current_weather": "sunny",
-  "current_weather_effect": null,
-  "weather_cycle_index": 0,
-  "last_repeated_action": null,
-  "repeated_action_count": 0,
+  "current_weather": "rainy",
+  "current_weather_effect": "snow",
+  "weather_cycle_index": 1,
+  "last_repeated_action": "work",
+  "repeated_action_count": 1,
   "sound_enabled": true
 }
