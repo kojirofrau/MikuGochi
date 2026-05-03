@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk
+from PIL import Image, ImageTk
 
 
 WINDOW_WIDTH = 512
@@ -27,11 +28,22 @@ SOUNDTRACK_FILES = [
     Path(__file__).with_name("assets") / "audio" / "soundtrack_monomi-sensei_no_kyouiku_jisshuu.mp3",
     Path(__file__).with_name("assets") / "audio" / "soundtrack_re__beautiful_morning.mp3",
 ]
+WEATHER_BACKGROUND_SPRITESHEET = (
+    Path(__file__).with_name("assets")
+    / "weather"
+    / "background"
+    / "weather_background_spritesheet.png"
+)
 NOTIFICATION_SOUND_VOLUME = 500
 SOUNDTRACK_VOLUME = NOTIFICATION_SOUND_VOLUME // 2
 NOTIFICATION_SOUND_CLOSE_DELAY_MS = 5_000
 SOUNDTRACK_MONITOR_INTERVAL_MS = 2_000
 SOUNDTRACK_FALLBACK_DURATION_MS = 180_000
+DAY_DURATION_SECONDS = 120
+NIGHT_DURATION_SECONDS = 60
+WEATHER_CYCLE_SECONDS = 120
+WEATHER_ANIMATION_INTERVAL_MS = 450
+WEATHER_FRAME_COUNT = 6
 MAX_STATUS_SEVERITY = 3
 MAX_ENERGY = 100
 CARE_ACTION_ENERGY_COST = 5
@@ -61,8 +73,15 @@ CHARACTERS = {
     "meiko": {"name": "Meiko", "short_name": "Meiko"},
 }
 DEFAULT_CHARACTER_KEY = "miku"
-WEATHER_SKY_OPTIONS = ("sunny", "cloudy")
-WEATHER_EFFECT_OPTIONS = ("none", "raindrops", "snow", "sakura petals", "autumn leaves")
+WEATHER_OPTIONS = ("clear", "partly_cloudy", "rainy")
+WEATHER_SPRITE_ROWS = {
+    ("clear", "day"): 0,
+    ("clear", "night"): 1,
+    ("partly_cloudy", "day"): 2,
+    ("partly_cloudy", "night"): 3,
+    ("rainy", "day"): 4,
+    ("rainy", "night"): 5,
+}
 
 
 ITEMS = {
@@ -148,14 +167,16 @@ class MikuGochiApp(tk.Tk):
         self.game_view_mode = "normal"
         self.character_dead = False
         self.current_character_key: str | None = None
-        self.current_weather_sky = "sunny"
-        self.current_weather_effect = "none"
+        self.current_weather = "clear"
+        self.weather_cycle_index = 0
+        self.weather_animation_frame = 0
         self.last_repeated_action: str | None = None
         self.repeated_action_count = 0
         self.sound_enabled = True
         self.status_roll_job: str | None = None
         self.death_countdown_job: str | None = None
         self.death_countdown_remaining: int | None = None
+        self.weather_animation_job: str | None = None
         self.sound_close_job: str | None = None
         self.soundtrack_next_job: str | None = None
         self.soundtrack_monitor_job: str | None = None
@@ -177,6 +198,7 @@ class MikuGochiApp(tk.Tk):
         self.death_timer_label: ttk.Label | None = None
         self.sound_buttons: list[ttk.Button] = []
         self.sound_images = self._create_sound_images()
+        self.weather_background_frames = self._load_weather_background_frames()
 
         self.configure(bg="#f6f7fb")
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -193,6 +215,7 @@ class MikuGochiApp(tk.Tk):
             self.status_roll_job = None
 
         self._cancel_death_countdown()
+        self._cancel_weather_animation()
 
         if self.screen_frame is not None:
             self.screen_frame.destroy()
@@ -417,6 +440,7 @@ class MikuGochiApp(tk.Tk):
         self.feedback_label.pack(fill="x", pady=(16, 0))
 
         self._refresh_status_ui()
+        self._schedule_weather_animation()
         if mode == "normal":
             self._update_death_countdown()
             self._schedule_status_roll()
@@ -860,6 +884,7 @@ class MikuGochiApp(tk.Tk):
         return False
 
     def _refresh_status_ui(self) -> None:
+        self._update_weather_cycle()
         self._draw_character_scene()
 
         for key, label in self.status_labels.items():
@@ -894,18 +919,32 @@ class MikuGochiApp(tk.Tk):
 
         canvas.delete("scene")
         layers = self._character_scene_layers()
-        canvas.create_rectangle(
-            0,
-            0,
-            WINDOW_WIDTH,
-            CHARACTER_AREA_HEIGHT,
-            fill=layers[0]["fill"],
-            outline="",
-            tags=("scene",),
-        )
 
         for layer in layers:
-            if layer["kind"] == "text":
+            if layer["kind"] == "weather":
+                image = self._current_weather_image()
+                if image is None:
+                    canvas.create_rectangle(
+                        0,
+                        0,
+                        WINDOW_WIDTH,
+                        CHARACTER_AREA_HEIGHT,
+                        fill=CHARACTER_AREA_BG,
+                        outline="",
+                        tags=("scene",),
+                    )
+                    canvas.create_text(
+                        WINDOW_WIDTH // 2,
+                        104,
+                        text=layer["text"],
+                        anchor="center",
+                        fill="#263238",
+                        font=("Segoe UI", 12, "bold"),
+                        tags=("scene",),
+                    )
+                else:
+                    canvas.create_image(0, 0, image=image, anchor="nw", tags=("scene",))
+            elif layer["kind"] == "text":
                 canvas.create_text(
                     layer["x"],
                     layer["y"],
@@ -936,25 +975,20 @@ class MikuGochiApp(tk.Tk):
                 )
 
     def _character_scene_layers(self) -> list[dict[str, object]]:
-        sky_time = "Night" if self._is_night_scene() else "Day"
-        sky = self.current_weather_sky.title()
-        weather_fill = self._weather_fill()
+        time_name = self._scene_time_name()
+        weather_name = self.current_weather.replace("_", " ").title()
         location = "Conbini sprite" if self.game_view_mode == "konbini" else "Room sprite"
         trash_text = f"Trash layer: Dirt {self.statuses['dirty_room']}/{MAX_STATUS_SEVERITY}"
         actor = "Vendor" if self.game_view_mode == "konbini" else "Character"
 
         return [
             {
-                "kind": "text",
-                "fill": weather_fill,
-                "text": f"Layer 1: Weather sprite - {sky_time}, {sky}",
-                "x": WINDOW_WIDTH // 2,
-                "y": 104,
-                "font": ("Segoe UI", 12, "bold"),
+                "kind": "weather",
+                "text": f"Layer 1: Weather sprite - {time_name.title()}, {weather_name}",
             },
             {
                 "kind": "text",
-                "text": f"Layer 2: Weather effect - {self.current_weather_effect}",
+                "text": "Layer 2: Weather effect - none",
                 "x": WINDOW_WIDTH // 2,
                 "y": 132,
                 "font": ("Segoe UI", 12),
@@ -992,14 +1026,68 @@ class MikuGochiApp(tk.Tk):
         ]
 
     def _is_night_scene(self) -> bool:
-        hour = time.localtime().tm_hour
-        return hour < 6 or hour >= 19
+        return self._scene_time_name() == "night"
+
+    def _scene_time_name(self) -> str:
+        started_at = int(self.current_game_statistics.get("started_at", int(time.time())))
+        elapsed = max(0, int(time.time()) - started_at)
+        cycle_length = DAY_DURATION_SECONDS + NIGHT_DURATION_SECONDS
+        return "day" if elapsed % cycle_length < DAY_DURATION_SECONDS else "night"
+
+    def _update_weather_cycle(self) -> None:
+        started_at = int(self.current_game_statistics.get("started_at", int(time.time())))
+        elapsed = max(0, int(time.time()) - started_at)
+        cycle_index = elapsed // WEATHER_CYCLE_SECONDS
+        if cycle_index <= self.weather_cycle_index:
+            return
+
+        self.weather_cycle_index = cycle_index
+        self.current_weather = random.choice(WEATHER_OPTIONS)
+        self.weather_animation_frame = 0
+        self._save_progress()
+
+    def _schedule_weather_animation(self) -> None:
+        self._cancel_weather_animation()
+        if self.character_scene_canvas is None:
+            return
+
+        self.weather_animation_job = self.after(
+            WEATHER_ANIMATION_INTERVAL_MS,
+            self._advance_weather_animation,
+        )
+
+    def _advance_weather_animation(self) -> None:
+        self.weather_animation_job = None
+        if self.character_scene_canvas is None:
+            return
+
+        self.weather_animation_frame = (self.weather_animation_frame + 1) % WEATHER_FRAME_COUNT
+        self._refresh_status_ui()
+        self._schedule_weather_animation()
+
+    def _cancel_weather_animation(self) -> None:
+        if self.weather_animation_job is None:
+            return
+
+        try:
+            self.after_cancel(self.weather_animation_job)
+        except tk.TclError:
+            pass
+        self.weather_animation_job = None
+
+    def _current_weather_image(self) -> ImageTk.PhotoImage | None:
+        time_name = self._scene_time_name()
+        frames = self.weather_background_frames.get((self.current_weather, time_name), [])
+        if not frames:
+            return None
+
+        return frames[self.weather_animation_frame % len(frames)]
 
     def _weather_fill(self) -> str:
         if self._is_night_scene():
-            return "#a8d8df" if self.current_weather_sky == "sunny" else "#b5d8dc"
+            return "#a8d8df"
 
-        return "#c8f4ec" if self.current_weather_sky == "sunny" else "#d2eee9"
+        return CHARACTER_AREA_BG
 
     def _clear_status(
         self,
@@ -1216,8 +1304,9 @@ class MikuGochiApp(tk.Tk):
         self.inventory = DEFAULT_INVENTORY.copy()
         self.character_dead = False
         self.current_character_key = None
-        self.current_weather_sky = "sunny"
-        self.current_weather_effect = "none"
+        self.current_weather = "clear"
+        self.weather_cycle_index = 0
+        self.weather_animation_frame = 0
         self.death_countdown_remaining = None
         self._reset_repeated_action_streak()
         self.has_save = False
@@ -1235,8 +1324,9 @@ class MikuGochiApp(tk.Tk):
         self.inventory = DEFAULT_INVENTORY.copy()
         self.character_dead = False
         self.current_character_key = self._choose_new_character_key(self.current_character_key)
-        self.current_weather_sky = random.choice(WEATHER_SKY_OPTIONS)
-        self.current_weather_effect = random.choice(WEATHER_EFFECT_OPTIONS)
+        self.current_weather = random.choice(WEATHER_OPTIONS)
+        self.weather_cycle_index = 0
+        self.weather_animation_frame = 0
         self.death_countdown_remaining = None
         self._reset_repeated_action_streak()
         self.statistics["games_played"] += 1
@@ -1271,8 +1361,9 @@ class MikuGochiApp(tk.Tk):
         self.inventory = self._load_inventory(data.get("inventory", {}))
         self.character_dead = bool(data.get("character_dead", False))
         self.current_character_key = self._load_character_key(data.get("current_character"))
-        self.current_weather_sky = self._load_weather_sky(data.get("current_weather_sky"))
-        self.current_weather_effect = self._load_weather_effect(data.get("current_weather_effect"))
+        self.current_weather = self._load_weather(data.get("current_weather", data.get("current_weather_sky")))
+        self.weather_cycle_index = self._load_weather_cycle_index(data.get("weather_cycle_index", 0))
+        self.weather_animation_frame = 0
         self.last_repeated_action = data.get("last_repeated_action")
         if self.last_repeated_action not in {"rest", "work"}:
             self.last_repeated_action = None
@@ -1336,8 +1427,8 @@ class MikuGochiApp(tk.Tk):
             "inventory": self.inventory,
             "character_dead": self.character_dead,
             "current_character": self.current_character_key,
-            "current_weather_sky": self.current_weather_sky,
-            "current_weather_effect": self.current_weather_effect,
+            "current_weather": self.current_weather,
+            "weather_cycle_index": self.weather_cycle_index,
             "last_repeated_action": self.last_repeated_action,
             "repeated_action_count": self.repeated_action_count,
             "sound_enabled": self.sound_enabled,
@@ -1790,18 +1881,24 @@ $player.Close()
         return random.choice(choices)
 
     @staticmethod
-    def _load_weather_sky(value: object) -> str:
-        if isinstance(value, str) and value in WEATHER_SKY_OPTIONS:
+    def _load_weather(value: object) -> str:
+        if value == "sunny":
+            return "clear"
+        if value == "cloudy":
+            return "partly_cloudy"
+        if isinstance(value, str) and value in WEATHER_OPTIONS:
             return value
 
-        return "sunny"
+        return "clear"
 
     @staticmethod
-    def _load_weather_effect(value: object) -> str:
-        if isinstance(value, str) and value in WEATHER_EFFECT_OPTIONS:
-            return value
+    def _load_weather_cycle_index(value: object) -> int:
+        try:
+            cycle_index = int(value)
+        except (TypeError, ValueError):
+            return 0
 
-        return "none"
+        return max(0, cycle_index)
 
     @staticmethod
     def _load_status_severity(value: object) -> int:
@@ -1949,6 +2046,32 @@ $player.Close()
             return ctypes.windll.winmm.mciSendStringW(command, None, 0, None) == 0
         except AttributeError:
             return False
+
+    def _load_weather_background_frames(self) -> dict[tuple[str, str], list[ImageTk.PhotoImage]]:
+        if not WEATHER_BACKGROUND_SPRITESHEET.exists():
+            return {}
+
+        try:
+            sheet = Image.open(WEATHER_BACKGROUND_SPRITESHEET).convert("RGBA")
+        except OSError:
+            return {}
+
+        frames: dict[tuple[str, str], list[ImageTk.PhotoImage]] = {}
+        for (weather, time_name), row in WEATHER_SPRITE_ROWS.items():
+            row_frames: list[ImageTk.PhotoImage] = []
+            for frame in range(WEATHER_FRAME_COUNT):
+                crop = sheet.crop(
+                    (
+                        frame * WINDOW_WIDTH,
+                        row * CHARACTER_AREA_HEIGHT,
+                        (frame + 1) * WINDOW_WIDTH,
+                        (row + 1) * CHARACTER_AREA_HEIGHT,
+                    )
+                )
+                row_frames.append(ImageTk.PhotoImage(crop))
+            frames[(weather, time_name)] = row_frames
+
+        return frames
 
     def _create_sound_images(self) -> dict[str, tk.PhotoImage]:
         return {

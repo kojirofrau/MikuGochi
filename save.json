@@ -14,7 +14,7 @@
     "times_entertained": 7
   },
   "current_game": {
-    "started_at": 1777786394,
+    "started_at": 1777787943,
     "times_fed": 0,
     "times_healed": 0,
     "times_cleaned": 0,
@@ -83,8 +83,8 @@
   },
   "character_dead": false,
   "current_character": "meiko",
-  "current_weather_sky": "sunny",
-  "current_weather_effect": "snow",
+  "current_weather": "rainy",
+  "weather_cycle_index": 1,
   "last_repeated_action": null,
   "repeated_action_count": 0,
   "sound_enabled": false
