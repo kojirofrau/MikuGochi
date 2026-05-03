@@ -61,6 +61,8 @@ CHARACTERS = {
     "meiko": {"name": "Meiko", "short_name": "Meiko"},
 }
 DEFAULT_CHARACTER_KEY = "miku"
+WEATHER_SKY_OPTIONS = ("sunny", "cloudy")
+WEATHER_EFFECT_OPTIONS = ("none", "raindrops", "snow", "sakura petals", "autumn leaves")
 
 
 ITEMS = {
@@ -146,6 +148,8 @@ class MikuGochiApp(tk.Tk):
         self.game_view_mode = "normal"
         self.character_dead = False
         self.current_character_key: str | None = None
+        self.current_weather_sky = "sunny"
+        self.current_weather_effect = "none"
         self.last_repeated_action: str | None = None
         self.repeated_action_count = 0
         self.sound_enabled = True
@@ -164,6 +168,7 @@ class MikuGochiApp(tk.Tk):
 
         self.status_labels: dict[str, ttk.Label] = {}
         self.shop_buttons: dict[str, ttk.Button] = {}
+        self.character_scene_canvas: tk.Canvas | None = None
         self.energy_label: ttk.Label | None = None
         self.money_label: ttk.Label | None = None
         self.score_label: ttk.Label | None = None
@@ -195,6 +200,7 @@ class MikuGochiApp(tk.Tk):
 
         self.sound_buttons = []
         self.shop_buttons = {}
+        self.character_scene_canvas = None
         self.energy_label = None
         self.money_label = None
         self.score_label = None
@@ -326,6 +332,16 @@ class MikuGochiApp(tk.Tk):
         character_frame.pack_propagate(False)
         character_frame.pack(fill="x", side="top")
 
+        self.character_scene_canvas = tk.Canvas(
+            character_frame,
+            width=WINDOW_WIDTH,
+            height=CHARACTER_AREA_HEIGHT,
+            bg=CHARACTER_AREA_BG,
+            highlightthickness=0,
+        )
+        self.character_scene_canvas.place(x=0, y=0, relwidth=1.0, relheight=1.0)
+        self._draw_character_scene()
+
         self._add_menu_button(character_frame, x=-12, y=12)
         self._add_sound_button(character_frame, x=-(12 + MENU_BUTTON_WIDTH + 8), y=12)
 
@@ -355,15 +371,6 @@ class MikuGochiApp(tk.Tk):
             background=CHARACTER_AREA_BG,
         )
         self.score_label.place(x=14, y=62, anchor="nw")
-
-        self.character_state_label = ttk.Label(
-            character_frame,
-            text=self._character_state_text(),
-            anchor="center",
-            font=("Segoe UI", 24, "bold"),
-            background=CHARACTER_AREA_BG,
-        )
-        self.character_state_label.place(relx=0.5, rely=0.5, anchor="center")
 
         self.mood_label = ttk.Label(
             character_frame,
@@ -853,6 +860,8 @@ class MikuGochiApp(tk.Tk):
         return False
 
     def _refresh_status_ui(self) -> None:
+        self._draw_character_scene()
+
         for key, label in self.status_labels.items():
             severity = self.statuses[key]
             label.configure(text="OK" if severity == 0 else f"{severity}/{MAX_STATUS_SEVERITY}")
@@ -877,6 +886,120 @@ class MikuGochiApp(tk.Tk):
                 self.death_timer_label.configure(text="")
             else:
                 self.death_timer_label.configure(text=f"Danger: {self.death_countdown_remaining}s")
+
+    def _draw_character_scene(self) -> None:
+        canvas = self.character_scene_canvas
+        if canvas is None:
+            return
+
+        canvas.delete("scene")
+        layers = self._character_scene_layers()
+        canvas.create_rectangle(
+            0,
+            0,
+            WINDOW_WIDTH,
+            CHARACTER_AREA_HEIGHT,
+            fill=layers[0]["fill"],
+            outline="",
+            tags=("scene",),
+        )
+
+        for layer in layers:
+            if layer["kind"] == "text":
+                canvas.create_text(
+                    layer["x"],
+                    layer["y"],
+                    text=layer["text"],
+                    anchor=layer.get("anchor", "center"),
+                    fill=layer.get("color", "#263238"),
+                    font=layer.get("font", ("Segoe UI", 13, "bold")),
+                    tags=("scene",),
+                )
+            elif layer["kind"] == "panel":
+                canvas.create_rectangle(
+                    layer["x1"],
+                    layer["y1"],
+                    layer["x2"],
+                    layer["y2"],
+                    fill=layer["fill"],
+                    outline=layer["outline"],
+                    tags=("scene",),
+                )
+                canvas.create_text(
+                    layer["x"],
+                    layer["y"],
+                    text=layer["text"],
+                    anchor="center",
+                    fill=layer.get("color", "#263238"),
+                    font=layer.get("font", ("Segoe UI", 13, "bold")),
+                    tags=("scene",),
+                )
+
+    def _character_scene_layers(self) -> list[dict[str, object]]:
+        sky_time = "Night" if self._is_night_scene() else "Day"
+        sky = self.current_weather_sky.title()
+        weather_fill = self._weather_fill()
+        location = "Conbini sprite" if self.game_view_mode == "konbini" else "Room sprite"
+        trash_text = f"Trash layer: Dirt {self.statuses['dirty_room']}/{MAX_STATUS_SEVERITY}"
+        actor = "Vendor" if self.game_view_mode == "konbini" else "Character"
+
+        return [
+            {
+                "kind": "text",
+                "fill": weather_fill,
+                "text": f"Layer 1: Weather sprite - {sky_time}, {sky}",
+                "x": WINDOW_WIDTH // 2,
+                "y": 104,
+                "font": ("Segoe UI", 12, "bold"),
+            },
+            {
+                "kind": "text",
+                "text": f"Layer 2: Weather effect - {self.current_weather_effect}",
+                "x": WINDOW_WIDTH // 2,
+                "y": 132,
+                "font": ("Segoe UI", 12),
+            },
+            {
+                "kind": "panel",
+                "text": f"Layer 3: {location}",
+                "x1": 76,
+                "y1": 156,
+                "x2": WINDOW_WIDTH - 76,
+                "y2": 256,
+                "x": WINDOW_WIDTH // 2,
+                "y": 176,
+                "fill": "#d9fff7",
+                "outline": "#79cabe",
+            },
+            {
+                "kind": "text",
+                "text": f"Layer 4: {trash_text}",
+                "x": 96,
+                "y": 236,
+                "anchor": "w",
+                "font": ("Segoe UI", 11),
+            },
+            {
+                "kind": "text",
+                "text": f"Layer 5: {actor} - {self._character_state_text()}",
+                "x": WINDOW_WIDTH // 2,
+                "y": 218,
+                "font": ("Segoe UI", 18, "bold"),
+            },
+            {
+                "kind": "interface",
+            },
+        ]
+
+    def _is_night_scene(self) -> bool:
+        hour = time.localtime().tm_hour
+        return hour < 6 or hour >= 19
+
+    def _weather_fill(self) -> str:
+        if self._is_night_scene():
+            return "#a8d8df" if self.current_weather_sky == "sunny" else "#b5d8dc"
+
+        return "#c8f4ec" if self.current_weather_sky == "sunny" else "#d2eee9"
 
     def _clear_status(
         self,
@@ -1093,6 +1216,8 @@ class MikuGochiApp(tk.Tk):
         self.inventory = DEFAULT_INVENTORY.copy()
         self.character_dead = False
         self.current_character_key = None
+        self.current_weather_sky = "sunny"
+        self.current_weather_effect = "none"
         self.death_countdown_remaining = None
         self._reset_repeated_action_streak()
         self.has_save = False
@@ -1110,6 +1235,8 @@ class MikuGochiApp(tk.Tk):
         self.inventory = DEFAULT_INVENTORY.copy()
         self.character_dead = False
         self.current_character_key = self._choose_new_character_key(self.current_character_key)
+        self.current_weather_sky = random.choice(WEATHER_SKY_OPTIONS)
+        self.current_weather_effect = random.choice(WEATHER_EFFECT_OPTIONS)
         self.death_countdown_remaining = None
         self._reset_repeated_action_streak()
         self.statistics["games_played"] += 1
@@ -1144,6 +1271,8 @@ class MikuGochiApp(tk.Tk):
         self.inventory = self._load_inventory(data.get("inventory", {}))
         self.character_dead = bool(data.get("character_dead", False))
         self.current_character_key = self._load_character_key(data.get("current_character"))
+        self.current_weather_sky = self._load_weather_sky(data.get("current_weather_sky"))
+        self.current_weather_effect = self._load_weather_effect(data.get("current_weather_effect"))
         self.last_repeated_action = data.get("last_repeated_action")
         if self.last_repeated_action not in {"rest", "work"}:
             self.last_repeated_action = None
@@ -1207,6 +1336,8 @@ class MikuGochiApp(tk.Tk):
             "inventory": self.inventory,
             "character_dead": self.character_dead,
             "current_character": self.current_character_key,
+            "current_weather_sky": self.current_weather_sky,
+            "current_weather_effect": self.current_weather_effect,
             "last_repeated_action": self.last_repeated_action,
             "repeated_action_count": self.repeated_action_count,
             "sound_enabled": self.sound_enabled,
@@ -1657,6 +1788,20 @@ $player.Close()
             choices = list(CHARACTERS)
 
         return random.choice(choices)
+
+    @staticmethod
+    def _load_weather_sky(value: object) -> str:
+        if isinstance(value, str) and value in WEATHER_SKY_OPTIONS:
+            return value
+
+        return "sunny"
+
+    @staticmethod
+    def _load_weather_effect(value: object) -> str:
+        if isinstance(value, str) and value in WEATHER_EFFECT_OPTIONS:
+            return value
+
+        return "none"
 
     @staticmethod
     def _load_status_severity(value: object) -> int:

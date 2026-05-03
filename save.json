@@ -1,12 +1,12 @@
 {
   "statuses": {
     "hunger": 0,
-    "sickness": 0,
+    "sickness": 1,
     "dirty_room": 0,
     "lazy": 0
   },
   "statistics": {
-    "games_played": 7,
+    "games_played": 9,
     "character_deaths": 4,
     "times_fed": 9,
     "times_healed": 10,
@@ -14,7 +14,7 @@
     "times_entertained": 7
   },
   "current_game": {
-    "started_at": 1777785657,
+    "started_at": 1777786394,
     "times_fed": 0,
     "times_healed": 0,
     "times_cleaned": 0,
@@ -59,7 +59,6 @@
     },
     {
       "character": "rin",
-      "score": 290,
       "survived_minutes": 0,
       "money": 8000,
       "money_earned": 8000,
@@ -70,7 +69,8 @@
       "times_rested": 4,
       "times_worked": 4,
       "items_bought": 0,
-      "items_used": 0
+      "items_used": 0,
+      "score": 290
     }
   ],
   "energy": 100,
@@ -83,6 +83,8 @@
   },
   "character_dead": false,
   "current_character": "meiko",
+  "current_weather_sky": "sunny",
+  "current_weather_effect": "snow",
   "last_repeated_action": null,
   "repeated_action_count": 0,
   "sound_enabled": false
