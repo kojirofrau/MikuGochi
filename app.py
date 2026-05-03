@@ -12,6 +12,7 @@ from tkinter import ttk
 WINDOW_WIDTH = 512
 WINDOW_HEIGHT = 640
 CHARACTER_AREA_HEIGHT = 340
+CHARACTER_AREA_BG = "#c8f4ec"
 TOP_BUTTON_SIZE = 32
 MENU_BUTTON_WIDTH = 64
 STATUS_CHECK_INTERVAL_MS = 20_000
@@ -40,6 +41,8 @@ STARTING_MONEY = 0
 WORK_MONEY_GAIN = 2000
 WORK_ENERGY_COST = 10
 WORK_STATUS_TRIGGERS = 3
+INVENTORY_ITEM_LIMIT = 3
+REPEATED_ACTION_LIMIT = 2
 LEADERBOARD_LIMIT = 5
 SCORE_PER_SURVIVAL_MINUTE = 10
 SCORE_PER_CARE_ACTION = 50
@@ -47,6 +50,17 @@ SCORE_PER_REST = 15
 SCORE_PER_WORK = 25
 SCORE_PER_ITEM = 20
 SCORE_MONEY_DIVISOR = 100
+
+
+CHARACTERS = {
+    "miku": {"name": "Hatsune Miku", "short_name": "Miku"},
+    "kaito": {"name": "Kaito", "short_name": "Kaito"},
+    "rin": {"name": "Kagamine Rin", "short_name": "Rin"},
+    "len": {"name": "Kagamine Len", "short_name": "Len"},
+    "luka": {"name": "Megurine Luka", "short_name": "Luka"},
+    "meiko": {"name": "Meiko", "short_name": "Meiko"},
+}
+DEFAULT_CHARACTER_KEY = "miku"
 
 
 ITEMS = {
@@ -122,8 +136,8 @@ class MikuGochiApp(tk.Tk):
         self.statuses = DEFAULT_STATUSES.copy()
         self.statistics = DEFAULT_STATISTICS.copy()
         self.current_game_statistics = self._new_game_statistics()
-        self.last_game_statistics: dict[str, int] | None = None
-        self.leaderboard: list[dict[str, int]] = []
+        self.last_game_statistics: dict[str, object] | None = None
+        self.leaderboard: list[dict[str, object]] = []
         self.energy = MAX_ENERGY
         self.money = STARTING_MONEY
         self.inventory = DEFAULT_INVENTORY.copy()
@@ -131,6 +145,9 @@ class MikuGochiApp(tk.Tk):
         self.game_started = False
         self.game_view_mode = "normal"
         self.character_dead = False
+        self.current_character_key: str | None = None
+        self.last_repeated_action: str | None = None
+        self.repeated_action_count = 0
         self.sound_enabled = True
         self.status_roll_job: str | None = None
         self.death_countdown_job: str | None = None
@@ -146,6 +163,7 @@ class MikuGochiApp(tk.Tk):
         self.tooltip_window: tk.Toplevel | None = None
 
         self.status_labels: dict[str, ttk.Label] = {}
+        self.shop_buttons: dict[str, ttk.Button] = {}
         self.energy_label: ttk.Label | None = None
         self.money_label: ttk.Label | None = None
         self.score_label: ttk.Label | None = None
@@ -176,6 +194,7 @@ class MikuGochiApp(tk.Tk):
             self.screen_frame = None
 
         self.sound_buttons = []
+        self.shop_buttons = {}
         self.energy_label = None
         self.money_label = None
         self.score_label = None
@@ -300,7 +319,7 @@ class MikuGochiApp(tk.Tk):
             frame,
             width=WINDOW_WIDTH,
             height=CHARACTER_AREA_HEIGHT,
-            bg="#ffffff",
+            bg=CHARACTER_AREA_BG,
             highlightbackground="#c8ccd6",
             highlightthickness=1,
         )
@@ -315,7 +334,7 @@ class MikuGochiApp(tk.Tk):
             text=f"Energy: {self.energy}/{MAX_ENERGY}",
             anchor="w",
             font=("Segoe UI", 11, "bold"),
-            background="#ffffff",
+            background=CHARACTER_AREA_BG,
         )
         self.energy_label.place(x=14, y=14, anchor="nw")
 
@@ -324,7 +343,7 @@ class MikuGochiApp(tk.Tk):
             text=f"Money: {self.money}¥",
             anchor="w",
             font=("Segoe UI", 11, "bold"),
-            background="#ffffff",
+            background=CHARACTER_AREA_BG,
         )
         self.money_label.place(x=14, y=38, anchor="nw")
 
@@ -333,7 +352,7 @@ class MikuGochiApp(tk.Tk):
             text=f"Score: {self._current_score()}",
             anchor="w",
             font=("Segoe UI", 11, "bold"),
-            background="#ffffff",
+            background=CHARACTER_AREA_BG,
         )
         self.score_label.place(x=14, y=62, anchor="nw")
 
@@ -342,7 +361,7 @@ class MikuGochiApp(tk.Tk):
             text=self._character_state_text(),
             anchor="center",
             font=("Segoe UI", 24, "bold"),
-            background="#ffffff",
+            background=CHARACTER_AREA_BG,
         )
         self.character_state_label.place(relx=0.5, rely=0.5, anchor="center")
 
@@ -351,7 +370,7 @@ class MikuGochiApp(tk.Tk):
             text="Mood: Excellent",
             anchor="w",
             font=("Segoe UI", 11, "bold"),
-            background="#ffffff",
+            background=CHARACTER_AREA_BG,
         )
         self.mood_label.place(x=14, rely=1.0, y=-18, anchor="sw")
 
@@ -361,7 +380,7 @@ class MikuGochiApp(tk.Tk):
             anchor="e",
             font=("Segoe UI", 11, "bold"),
             foreground="#b3261e",
-            background="#ffffff",
+            background=CHARACTER_AREA_BG,
         )
         self.death_timer_label.place(relx=1.0, x=-14, rely=1.0, y=-18, anchor="se")
 
@@ -475,10 +494,9 @@ class MikuGochiApp(tk.Tk):
 
         scores_frame = ttk.Frame(frame)
         scores_frame.pack(fill="x", pady=(0, 20))
-        for column in range(4):
+        headers = ("#", "Character", "Score", "Minutes", "Money")
+        for column in range(len(headers)):
             scores_frame.columnconfigure(column, weight=1 if column == 1 else 0)
-
-        headers = ("#", "Score", "Minutes", "Money")
         for column, header in enumerate(headers):
             ttk.Label(scores_frame, text=header, font=("Segoe UI", 10, "bold")).grid(
                 row=0,
@@ -493,11 +511,12 @@ class MikuGochiApp(tk.Tk):
                 scores_frame,
                 text="No scores yet. They are recorded after a game over.",
                 anchor="center",
-            ).grid(row=1, column=0, columnspan=4, sticky="ew", pady=24)
+            ).grid(row=1, column=0, columnspan=len(headers), sticky="ew", pady=24)
         else:
             for row, entry in enumerate(self.leaderboard, start=1):
                 values = (
                     row,
+                    self._character_short_name_for(entry.get("character")),
                     entry["score"],
                     entry["survived_minutes"],
                     f"{entry['money']}¥",
@@ -506,7 +525,7 @@ class MikuGochiApp(tk.Tk):
                     ttk.Label(
                         scores_frame,
                         text=str(value),
-                        font=("Segoe UI", 11, "bold") if column == 1 else ("Segoe UI", 10),
+                        font=("Segoe UI", 11, "bold") if column == 2 else ("Segoe UI", 10),
                     ).grid(
                         row=row,
                         column=column,
@@ -540,11 +559,12 @@ class MikuGochiApp(tk.Tk):
 
         ttk.Label(
             frame,
-            text="Miku could not keep going.",
+            text=f"{self._character_name()} could not keep going.",
             anchor="center",
         ).pack(fill="x", pady=(0, 20))
 
         stats = self.last_game_statistics or {
+            "character": self._character_key(),
             "survived_minutes": self._current_survival_minutes(),
             "money": self.money,
             "times_fed": self.current_game_statistics["times_fed"],
@@ -565,6 +585,7 @@ class MikuGochiApp(tk.Tk):
         stats_frame.columnconfigure(1, weight=0)
 
         rows = [
+            ("Character", self._character_name_for(stats.get("character"))),
             ("Score", stats["score"]),
             ("Survived minutes", stats["survived_minutes"]),
             ("Money", f"{stats['money']}¥"),
@@ -663,9 +684,10 @@ class MikuGochiApp(tk.Tk):
 
         for index, key in enumerate(ITEMS):
             item = ITEMS[key]
+            count = self.inventory.get(key, 0)
             button = ttk.Button(
                 shop_frame,
-                text=f"{item['name']} {item['price']}¥",
+                text=f"{item['name']} {item['price']}¥ ({count}/{INVENTORY_ITEM_LIMIT})",
                 command=lambda item_key=key: self.buy_item(item_key),
             )
             button.grid(
@@ -675,6 +697,9 @@ class MikuGochiApp(tk.Tk):
                 pady=4,
                 sticky="ew",
             )
+            if count >= INVENTORY_ITEM_LIMIT:
+                button.state(["disabled"])
+            self.shop_buttons[key] = button
             self._bind_tooltip(button, item["description"])
 
         ttk.Button(parent, text="Return", command=self.return_to_game).pack(fill="x", pady=(14, 0))
@@ -871,6 +896,7 @@ class MikuGochiApp(tk.Tk):
             self.statuses[key] = max(0, self.statuses[key] - 1)
             self.statistics[statistic_key] += 1
             self.current_game_statistics[statistic_key] += 1
+            self._reset_repeated_action_streak()
             self.feedback_label.configure(text=clear_message)
             self._refresh_status_ui()
             self._update_death_countdown()
@@ -908,6 +934,13 @@ class MikuGochiApp(tk.Tk):
     def buy_item(self, key: str) -> None:
         item = ITEMS[key]
         price = int(item["price"])
+        if self.inventory.get(key, 0) >= INVENTORY_ITEM_LIMIT:
+            self.feedback_label.configure(text=f"You can only carry {INVENTORY_ITEM_LIMIT} of each item.")
+            self._refresh_status_ui()
+            self._refresh_shop_buttons()
+            self._save_progress()
+            return
+
         if self.money < price:
             self.feedback_label.configure(text="Not enough money.")
             self._refresh_status_ui()
@@ -917,8 +950,10 @@ class MikuGochiApp(tk.Tk):
         self.money -= price
         self.inventory[key] = self.inventory.get(key, 0) + 1
         self.current_game_statistics["items_bought"] += 1
+        self._reset_repeated_action_streak()
         self.feedback_label.configure(text=f"Bought {item['name']}.")
         self._refresh_status_ui()
+        self._refresh_shop_buttons()
         self._save_progress()
 
     def use_item(self, key: str) -> None:
@@ -939,14 +974,55 @@ class MikuGochiApp(tk.Tk):
 
         self.inventory[key] -= 1
         self.current_game_statistics["items_used"] += 1
+        self._reset_repeated_action_streak()
         self.feedback_label.configure(text=f"Used {item['name']}.")
         self._refresh_status_ui()
         self._save_progress()
         self._show_game(mode="inventory")
 
+    def _can_take_repeated_action(self, action: str) -> bool:
+        if self.death_countdown_remaining is not None:
+            self.feedback_label.configure(text="Too dangerous for that. Clear a status before resting or working.")
+            self._refresh_status_ui()
+            self._save_progress()
+            return False
+
+        if self.last_repeated_action == action and self.repeated_action_count >= REPEATED_ACTION_LIMIT:
+            self.feedback_label.configure(text=f"You cannot {action} more than {REPEATED_ACTION_LIMIT} times in a row.")
+            self._refresh_status_ui()
+            self._save_progress()
+            return False
+
+        return True
+
+    def _record_repeated_action(self, action: str) -> None:
+        if self.last_repeated_action == action:
+            self.repeated_action_count += 1
+        else:
+            self.last_repeated_action = action
+            self.repeated_action_count = 1
+
+    def _reset_repeated_action_streak(self) -> None:
+        self.last_repeated_action = None
+        self.repeated_action_count = 0
+
+    def _refresh_shop_buttons(self) -> None:
+        for key, button in self.shop_buttons.items():
+            item = ITEMS[key]
+            count = self.inventory.get(key, 0)
+            button.configure(text=f"{item['name']} {item['price']}¥ ({count}/{INVENTORY_ITEM_LIMIT})")
+            if count >= INVENTORY_ITEM_LIMIT:
+                button.state(["disabled"])
+            else:
+                button.state(["!disabled"])
+
     def rest(self) -> None:
+        if not self._can_take_repeated_action("rest"):
+            return
+
         self.energy = min(MAX_ENERGY, self.energy + REST_ENERGY_GAIN)
         self.current_game_statistics["times_rested"] += 1
+        self._record_repeated_action("rest")
         worsened_count = 0
         for _ in range(REST_STATUS_TRIGGERS):
             if self._try_worsen_random_status():
@@ -961,6 +1037,9 @@ class MikuGochiApp(tk.Tk):
         self._save_progress()
 
     def go_to_work(self) -> None:
+        if not self._can_take_repeated_action("work"):
+            return
+
         if self.energy < WORK_ENERGY_COST:
             self.feedback_label.configure(text="Not enough energy to work. Rest first.")
             self._refresh_status_ui()
@@ -971,6 +1050,7 @@ class MikuGochiApp(tk.Tk):
         self.money += WORK_MONEY_GAIN
         self.current_game_statistics["times_worked"] += 1
         self.current_game_statistics["money_earned"] += WORK_MONEY_GAIN
+        self._record_repeated_action("work")
         worsened_count = 0
         for _ in range(WORK_STATUS_TRIGGERS):
             if self._try_worsen_random_status():
@@ -1012,7 +1092,9 @@ class MikuGochiApp(tk.Tk):
         self.money = STARTING_MONEY
         self.inventory = DEFAULT_INVENTORY.copy()
         self.character_dead = False
+        self.current_character_key = None
         self.death_countdown_remaining = None
+        self._reset_repeated_action_streak()
         self.has_save = False
         self.game_started = False
         if SAVE_FILE.exists():
@@ -1027,7 +1109,9 @@ class MikuGochiApp(tk.Tk):
         self.money = STARTING_MONEY
         self.inventory = DEFAULT_INVENTORY.copy()
         self.character_dead = False
+        self.current_character_key = self._choose_new_character_key(self.current_character_key)
         self.death_countdown_remaining = None
+        self._reset_repeated_action_streak()
         self.statistics["games_played"] += 1
         self.has_save = True
         if SAVE_FILE.exists():
@@ -1059,6 +1143,13 @@ class MikuGochiApp(tk.Tk):
         self.money = self._load_money(data.get("money", STARTING_MONEY))
         self.inventory = self._load_inventory(data.get("inventory", {}))
         self.character_dead = bool(data.get("character_dead", False))
+        self.current_character_key = self._load_character_key(data.get("current_character"))
+        self.last_repeated_action = data.get("last_repeated_action")
+        if self.last_repeated_action not in {"rest", "work"}:
+            self.last_repeated_action = None
+        self.repeated_action_count = self._load_repeated_action_count(data.get("repeated_action_count", 0))
+        if self.last_repeated_action is None:
+            self.repeated_action_count = 0
 
         self.statuses = {
             key: self._load_status_severity(saved_statuses.get(key, default))
@@ -1078,6 +1169,7 @@ class MikuGochiApp(tk.Tk):
         self.last_game_statistics = None
         if isinstance(saved_last_game_statistics, dict):
             self.last_game_statistics = {
+                "character": self._load_character_key(saved_last_game_statistics.get("character")) or DEFAULT_CHARACTER_KEY,
                 "survived_minutes": int(saved_last_game_statistics.get("survived_minutes", 0)),
                 "money": self._load_money(saved_last_game_statistics.get("money", 0)),
                 "times_fed": int(saved_last_game_statistics.get("times_fed", 0)),
@@ -1114,6 +1206,9 @@ class MikuGochiApp(tk.Tk):
             "money": self.money,
             "inventory": self.inventory,
             "character_dead": self.character_dead,
+            "current_character": self.current_character_key,
+            "last_repeated_action": self.last_repeated_action,
+            "repeated_action_count": self.repeated_action_count,
             "sound_enabled": self.sound_enabled,
         }
         SAVE_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -1473,6 +1568,7 @@ $player.Close()
 
     def _kill_character(self) -> None:
         self.last_game_statistics = {
+            "character": self._character_key(),
             "survived_minutes": self._current_survival_minutes(),
             "money": self.money,
             "times_fed": self.current_game_statistics["times_fed"],
@@ -1516,20 +1612,51 @@ $player.Close()
             return "Inventory"
 
         if self.death_countdown_remaining is not None:
-            return "Critical"
+            return f"{self._character_short_name()}: Critical"
 
         highest_severity = max(self.statuses.values())
         if highest_severity <= 0:
-            return "Waiting"
+            return f"{self._character_short_name()}: Waiting"
 
         priority = ["sickness", "hunger", "dirty_room", "lazy"]
         worst_status = max(priority, key=lambda key: (self.statuses[key], -priority.index(key)))
-        return {
+        state = {
             "hunger": "Hungry",
             "sickness": "Sick",
             "dirty_room": "Messy",
             "lazy": "Lazy",
         }[worst_status]
+        return f"{self._character_short_name()}: {state}"
+
+    def _character_name(self) -> str:
+        return CHARACTERS[self._character_key()]["name"]
+
+    def _character_short_name(self) -> str:
+        return CHARACTERS[self._character_key()]["short_name"]
+
+    def _character_name_for(self, value: object) -> str:
+        return CHARACTERS[self._load_character_key(value) or DEFAULT_CHARACTER_KEY]["name"]
+
+    def _character_short_name_for(self, value: object) -> str:
+        return CHARACTERS[self._load_character_key(value) or DEFAULT_CHARACTER_KEY]["short_name"]
+
+    def _character_key(self) -> str:
+        return self.current_character_key or DEFAULT_CHARACTER_KEY
+
+    @staticmethod
+    def _load_character_key(value: object) -> str | None:
+        if isinstance(value, str) and value in CHARACTERS:
+            return value
+
+        return None
+
+    @staticmethod
+    def _choose_new_character_key(previous_key: str | None) -> str:
+        choices = [key for key in CHARACTERS if key != previous_key]
+        if not choices:
+            choices = list(CHARACTERS)
+
+        return random.choice(choices)
 
     @staticmethod
     def _load_status_severity(value: object) -> int:
@@ -1562,7 +1689,16 @@ $player.Close()
         return max(0, money)
 
     @staticmethod
-    def _calculate_score(stats: dict[str, int]) -> int:
+    def _load_repeated_action_count(value: object) -> int:
+        try:
+            count = int(value)
+        except (TypeError, ValueError):
+            return 0
+
+        return min(REPEATED_ACTION_LIMIT, max(0, count))
+
+    @staticmethod
+    def _calculate_score(stats: dict[str, object]) -> int:
         care_actions = (
             int(stats.get("times_fed", 0))
             + int(stats.get("times_healed", 0))
@@ -1585,8 +1721,9 @@ $player.Close()
             + money_score,
         )
 
-    def _record_leaderboard_score(self, stats: dict[str, int]) -> None:
+    def _record_leaderboard_score(self, stats: dict[str, object]) -> None:
         entry = {
+            "character": self._load_character_key(stats.get("character")) or DEFAULT_CHARACTER_KEY,
             "score": int(stats.get("score", self._calculate_score(stats))),
             "survived_minutes": int(stats.get("survived_minutes", 0)),
             "money": self._load_money(stats.get("money", 0)),
@@ -1611,16 +1748,17 @@ $player.Close()
         )
         self.leaderboard = self.leaderboard[:LEADERBOARD_LIMIT]
 
-    def _load_leaderboard(self, value: object) -> list[dict[str, int]]:
+    def _load_leaderboard(self, value: object) -> list[dict[str, object]]:
         if not isinstance(value, list):
             return []
 
-        leaderboard: list[dict[str, int]] = []
+        leaderboard: list[dict[str, object]] = []
         for raw_entry in value:
             if not isinstance(raw_entry, dict):
                 continue
 
             entry = {
+                "character": self._load_character_key(raw_entry.get("character")) or DEFAULT_CHARACTER_KEY,
                 "survived_minutes": max(0, int(raw_entry.get("survived_minutes", 0))),
                 "money": self._load_money(raw_entry.get("money", 0)),
                 "money_earned": self._load_money(raw_entry.get("money_earned", 0)),
@@ -1654,7 +1792,7 @@ $player.Close()
         inventory = DEFAULT_INVENTORY.copy()
         for key in inventory:
             try:
-                inventory[key] = max(0, int(value.get(key, 0)))
+                inventory[key] = min(INVENTORY_ITEM_LIMIT, max(0, int(value.get(key, 0))))
             except (TypeError, ValueError):
                 inventory[key] = 0
 

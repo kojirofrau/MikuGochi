@@ -6,35 +6,84 @@
     "lazy": 0
   },
   "statistics": {
-    "games_played": 4,
-    "character_deaths": 1,
-    "times_fed": 4,
-    "times_healed": 7,
-    "times_cleaned": 3,
+    "games_played": 7,
+    "character_deaths": 4,
+    "times_fed": 9,
+    "times_healed": 10,
+    "times_cleaned": 5,
     "times_entertained": 7
   },
   "current_game": {
-    "started_at": 1777784288,
-    "times_fed": 1,
-    "times_healed": 4,
-    "times_cleaned": 1,
-    "times_entertained": 5,
-    "times_rested": 4,
-    "times_worked": 2,
-    "items_bought": 6,
-    "items_used": 3,
-    "money_earned": 4000
+    "started_at": 1777785657,
+    "times_fed": 0,
+    "times_healed": 0,
+    "times_cleaned": 0,
+    "times_entertained": 0,
+    "times_rested": 0,
+    "times_worked": 0,
+    "items_bought": 0,
+    "items_used": 0,
+    "money_earned": 0
   },
   "last_game": null,
-  "leaderboard": [],
-  "energy": 80,
-  "money": 250,
+  "leaderboard": [
+    {
+      "character": "miku",
+      "survived_minutes": 4,
+      "money": 24250,
+      "money_earned": 28000,
+      "times_fed": 1,
+      "times_healed": 4,
+      "times_cleaned": 1,
+      "times_entertained": 5,
+      "times_rested": 8,
+      "times_worked": 14,
+      "items_bought": 6,
+      "items_used": 3,
+      "score": 1520
+    },
+    {
+      "character": "miku",
+      "survived_minutes": 2,
+      "money": 8500,
+      "money_earned": 12000,
+      "times_fed": 4,
+      "times_healed": 3,
+      "times_cleaned": 2,
+      "times_entertained": 0,
+      "times_rested": 8,
+      "times_worked": 6,
+      "items_bought": 6,
+      "items_used": 3,
+      "score": 1040
+    },
+    {
+      "character": "rin",
+      "score": 290,
+      "survived_minutes": 0,
+      "money": 8000,
+      "money_earned": 8000,
+      "times_fed": 1,
+      "times_healed": 0,
+      "times_cleaned": 0,
+      "times_entertained": 0,
+      "times_rested": 4,
+      "times_worked": 4,
+      "items_bought": 0,
+      "items_used": 0
+    }
+  ],
+  "energy": 100,
+  "money": 0,
   "inventory": {
     "energy_drink": 0,
-    "medicine": 1,
-    "noodles": 1,
-    "magazine": 1
+    "medicine": 0,
+    "noodles": 0,
+    "magazine": 0
   },
   "character_dead": false,
-  "sound_enabled": true
+  "current_character": "meiko",
+  "last_repeated_action": null,
+  "repeated_action_count": 0,
+  "sound_enabled": false
 }
