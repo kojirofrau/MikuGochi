@@ -1,12 +1,12 @@
 {
   "image": "weather_background_spritesheet.png",
-  "source_image": "weather_background_spritesheet_source.png",
   "frame_width": 512,
   "frame_height": 340,
   "columns": 6,
   "rows": 6,
   "total_frames": 36,
   "animation_direction": "left_to_right_loop",
+  "has_borders": false,
   "row_types": [
     {
       "row": 0,
@@ -31,12 +31,14 @@
     {
       "row": 4,
       "weather": "rainy",
-      "time": "day"
+      "time": "day",
+      "notes": "very cloudy, no raindrops"
     },
     {
       "row": 5,
       "weather": "rainy",
-      "time": "night"
+      "time": "night",
+      "notes": "very cloudy, no raindrops"
     }
   ]
 }

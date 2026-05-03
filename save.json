@@ -1,29 +1,29 @@
 {
   "statuses": {
     "hunger": 0,
-    "sickness": 1,
+    "sickness": 0,
     "dirty_room": 0,
-    "lazy": 0
+    "lazy": 1
   },
   "statistics": {
-    "games_played": 9,
+    "games_played": 11,
     "character_deaths": 4,
-    "times_fed": 9,
-    "times_healed": 10,
-    "times_cleaned": 5,
-    "times_entertained": 7
+    "times_fed": 12,
+    "times_healed": 12,
+    "times_cleaned": 9,
+    "times_entertained": 8
   },
   "current_game": {
-    "started_at": 1777787943,
-    "times_fed": 0,
-    "times_healed": 0,
-    "times_cleaned": 0,
+    "started_at": 1777789314,
+    "times_fed": 3,
+    "times_healed": 2,
+    "times_cleaned": 1,
     "times_entertained": 0,
     "times_rested": 0,
-    "times_worked": 0,
+    "times_worked": 1,
     "items_bought": 0,
     "items_used": 0,
-    "money_earned": 0
+    "money_earned": 2000
   },
   "last_game": null,
   "leaderboard": [
@@ -73,8 +73,8 @@
       "score": 290
     }
   ],
-  "energy": 100,
-  "money": 0,
+  "energy": 60,
+  "money": 2000,
   "inventory": {
     "energy_drink": 0,
     "medicine": 0,
@@ -82,7 +82,7 @@
     "magazine": 0
   },
   "character_dead": false,
-  "current_character": "meiko",
+  "current_character": "rin",
   "current_weather": "rainy",
   "weather_cycle_index": 1,
   "last_repeated_action": null,
