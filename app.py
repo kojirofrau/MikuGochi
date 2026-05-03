@@ -34,6 +34,12 @@ WEATHER_BACKGROUND_SPRITESHEET = (
     / "background"
     / "weather_background_spritesheet.png"
 )
+WEATHER_EFFECTS_SPRITESHEET = (
+    Path(__file__).with_name("assets")
+    / "weather"
+    / "effects"
+    / "weather_effects_spritesheet.png"
+)
 NOTIFICATION_SOUND_VOLUME = 500
 SOUNDTRACK_VOLUME = NOTIFICATION_SOUND_VOLUME // 2
 NOTIFICATION_SOUND_CLOSE_DELAY_MS = 5_000
@@ -82,6 +88,16 @@ WEATHER_SPRITE_ROWS = {
     ("cloudy", "night"): 3,
     ("rainy", "day"): 4,
     ("rainy", "night"): 5,
+}
+WEATHER_EFFECT_OPTIONS = {
+    "sunny": (None, "sakura_petals"),
+    "cloudy": (None,),
+    "rainy": ("raindrops", "snow"),
+}
+WEATHER_EFFECT_SPRITE_ROWS = {
+    "raindrops": 0,
+    "sakura_petals": 1,
+    "snow": 2,
 }
 
 
@@ -169,6 +185,7 @@ class MikuGochiApp(tk.Tk):
         self.character_dead = False
         self.current_character_key: str | None = None
         self.current_weather = STARTING_WEATHER
+        self.current_weather_effect: str | None = self._choose_weather_effect(self.current_weather)
         self.weather_cycle_index = 0
         self.weather_animation_frame = 0
         self.last_repeated_action: str | None = None
@@ -200,6 +217,7 @@ class MikuGochiApp(tk.Tk):
         self.sound_buttons: list[ttk.Button] = []
         self.sound_images = self._create_sound_images()
         self.weather_background_frames = self._load_weather_background_frames()
+        self.weather_effect_frames = self._load_weather_effect_frames()
 
         self.configure(bg="#f6f7fb")
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -945,6 +963,10 @@ class MikuGochiApp(tk.Tk):
                     )
                 else:
                     canvas.create_image(0, 0, image=image, anchor="nw", tags=("scene",))
+            elif layer["kind"] == "weather_effect":
+                image = self._current_weather_effect_image()
+                if image is not None:
+                    canvas.create_image(0, 0, image=image, anchor="nw", tags=("scene",))
             elif layer["kind"] == "text":
                 canvas.create_text(
                     layer["x"],
@@ -988,11 +1010,7 @@ class MikuGochiApp(tk.Tk):
                 "text": f"Layer 1: Weather sprite - {time_name.title()}, {weather_name}",
             },
             {
-                "kind": "text",
-                "text": "Layer 2: Weather effect - none",
-                "x": WINDOW_WIDTH // 2,
-                "y": 132,
-                "font": ("Segoe UI", 12),
+                "kind": "weather_effect",
             },
             {
                 "kind": "panel",
@@ -1044,6 +1062,7 @@ class MikuGochiApp(tk.Tk):
 
         self.weather_cycle_index = cycle_index
         self.current_weather = self._choose_next_weather(self.current_weather)
+        self.current_weather_effect = self._choose_weather_effect(self.current_weather)
         self.weather_animation_frame = 0
         self._save_progress()
 
@@ -1079,6 +1098,16 @@ class MikuGochiApp(tk.Tk):
     def _current_weather_image(self) -> ImageTk.PhotoImage | None:
         time_name = self._scene_time_name()
         frames = self.weather_background_frames.get((self.current_weather, time_name), [])
+        if not frames:
+            return None
+
+        return frames[self.weather_animation_frame % len(frames)]
+
+    def _current_weather_effect_image(self) -> ImageTk.PhotoImage | None:
+        if self.current_weather_effect is None:
+            return None
+
+        frames = self.weather_effect_frames.get(self.current_weather_effect, [])
         if not frames:
             return None
 
@@ -1306,6 +1335,7 @@ class MikuGochiApp(tk.Tk):
         self.character_dead = False
         self.current_character_key = None
         self.current_weather = STARTING_WEATHER
+        self.current_weather_effect = self._choose_weather_effect(self.current_weather)
         self.weather_cycle_index = 0
         self.weather_animation_frame = 0
         self.death_countdown_remaining = None
@@ -1326,6 +1356,7 @@ class MikuGochiApp(tk.Tk):
         self.character_dead = False
         self.current_character_key = self._choose_new_character_key(self.current_character_key)
         self.current_weather = STARTING_WEATHER
+        self.current_weather_effect = self._choose_weather_effect(self.current_weather)
         self.weather_cycle_index = 0
         self.weather_animation_frame = 0
         self.death_countdown_remaining = None
@@ -1363,6 +1394,9 @@ class MikuGochiApp(tk.Tk):
         self.character_dead = bool(data.get("character_dead", False))
         self.current_character_key = self._load_character_key(data.get("current_character"))
         self.current_weather = self._load_weather(data.get("current_weather", data.get("current_weather_sky")))
+        self.current_weather_effect = self._load_weather_effect(data.get("current_weather_effect"))
+        if self.current_weather_effect not in WEATHER_EFFECT_OPTIONS.get(self.current_weather, (None,)):
+            self.current_weather_effect = self._choose_weather_effect(self.current_weather)
         self.weather_cycle_index = self._load_weather_cycle_index(data.get("weather_cycle_index", 0))
         self.weather_animation_frame = 0
         self.last_repeated_action = data.get("last_repeated_action")
@@ -1429,6 +1463,7 @@ class MikuGochiApp(tk.Tk):
             "character_dead": self.character_dead,
             "current_character": self.current_character_key,
             "current_weather": self.current_weather,
+            "current_weather_effect": self.current_weather_effect,
             "weather_cycle_index": self.weather_cycle_index,
             "last_repeated_action": self.last_repeated_action,
             "repeated_action_count": self.repeated_action_count,
@@ -1890,6 +1925,10 @@ $player.Close()
         return random.choice(choices)
 
     @staticmethod
+    def _choose_weather_effect(weather: str) -> str | None:
+        return random.choice(WEATHER_EFFECT_OPTIONS.get(weather, (None,)))
+
+    @staticmethod
     def _load_weather(value: object) -> str:
         if value == "clear":
             return "sunny"
@@ -1901,6 +1940,15 @@ $player.Close()
             return value
 
         return STARTING_WEATHER
+
+    @staticmethod
+    def _load_weather_effect(value: object) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str) and value in WEATHER_EFFECT_SPRITE_ROWS:
+            return value
+
+        return None
 
     @staticmethod
     def _load_weather_cycle_index(value: object) -> int:
@@ -2081,6 +2129,32 @@ $player.Close()
                 )
                 row_frames.append(ImageTk.PhotoImage(crop))
             frames[(weather, time_name)] = row_frames
+
+        return frames
+
+    def _load_weather_effect_frames(self) -> dict[str, list[ImageTk.PhotoImage]]:
+        if not WEATHER_EFFECTS_SPRITESHEET.exists():
+            return {}
+
+        try:
+            sheet = Image.open(WEATHER_EFFECTS_SPRITESHEET).convert("RGBA")
+        except OSError:
+            return {}
+
+        frames: dict[str, list[ImageTk.PhotoImage]] = {}
+        for effect, row in WEATHER_EFFECT_SPRITE_ROWS.items():
+            row_frames: list[ImageTk.PhotoImage] = []
+            for frame in range(WEATHER_FRAME_COUNT):
+                crop = sheet.crop(
+                    (
+                        frame * WINDOW_WIDTH,
+                        row * CHARACTER_AREA_HEIGHT,
+                        (frame + 1) * WINDOW_WIDTH,
+                        (row + 1) * CHARACTER_AREA_HEIGHT,
+                    )
+                )
+                row_frames.append(ImageTk.PhotoImage(crop))
+            frames[effect] = row_frames
 
         return frames
 

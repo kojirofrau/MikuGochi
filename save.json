@@ -3,18 +3,18 @@
     "hunger": 1,
     "sickness": 0,
     "dirty_room": 0,
-    "lazy": 0
+    "lazy": 1
   },
   "statistics": {
-    "games_played": 13,
-    "character_deaths": 4,
-    "times_fed": 12,
-    "times_healed": 12,
-    "times_cleaned": 9,
-    "times_entertained": 9
+    "games_played": 14,
+    "character_deaths": 5,
+    "times_fed": 17,
+    "times_healed": 16,
+    "times_cleaned": 10,
+    "times_entertained": 13
   },
   "current_game": {
-    "started_at": 1777790016,
+    "started_at": 1777794108,
     "times_fed": 0,
     "times_healed": 0,
     "times_cleaned": 0,
@@ -58,6 +58,21 @@
       "score": 1040
     },
     {
+      "character": "miku",
+      "survived_minutes": 14,
+      "money": 0,
+      "money_earned": 0,
+      "times_fed": 5,
+      "times_healed": 4,
+      "times_cleaned": 1,
+      "times_entertained": 4,
+      "times_rested": 0,
+      "times_worked": 0,
+      "items_bought": 0,
+      "items_used": 0,
+      "score": 840
+    },
+    {
       "character": "rin",
       "survived_minutes": 0,
       "money": 8000,
@@ -82,10 +97,11 @@
     "magazine": 0
   },
   "character_dead": false,
-  "current_character": "miku",
+  "current_character": "kaito",
   "current_weather": "sunny",
+  "current_weather_effect": null,
   "weather_cycle_index": 0,
   "last_repeated_action": null,
   "repeated_action_count": 0,
-  "sound_enabled": false
+  "sound_enabled": true
 }
