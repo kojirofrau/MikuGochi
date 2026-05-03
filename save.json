@@ -1,33 +1,33 @@
 {
   "statuses": {
-    "hunger": 0,
+    "hunger": 1,
     "sickness": 0,
     "dirty_room": 0,
-    "lazy": 0
+    "lazy": 1
   },
   "statistics": {
-    "games_played": 1,
-    "character_deaths": 0,
-    "times_fed": 0,
-    "times_healed": 0,
-    "times_cleaned": 0,
-    "times_entertained": 0
+    "games_played": 3,
+    "character_deaths": 1,
+    "times_fed": 3,
+    "times_healed": 3,
+    "times_cleaned": 2,
+    "times_entertained": 2
   },
   "current_game": {
-    "started_at": 1777746048,
-    "times_fed": 0,
-    "times_healed": 0,
-    "times_cleaned": 0,
-    "times_entertained": 0
+    "started_at": 1777783583,
+    "times_fed": 3,
+    "times_healed": 3,
+    "times_cleaned": 2,
+    "times_entertained": 2
   },
   "last_game": null,
-  "energy": 100,
-  "money": 0,
+  "energy": 85,
+  "money": 2250,
   "inventory": {
     "energy_drink": 0,
-    "medicine": 0,
-    "noodles": 0,
-    "magazine": 0
+    "medicine": 1,
+    "noodles": 1,
+    "magazine": 1
   },
   "character_dead": false,
   "sound_enabled": true

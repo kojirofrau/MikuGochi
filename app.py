@@ -1,6 +1,8 @@
 import random
+import base64
 import ctypes
 import json
+import subprocess
 import time
 from pathlib import Path
 import tkinter as tk
@@ -124,6 +126,9 @@ class MikuGochiApp(tk.Tk):
         self.soundtrack_next_job: str | None = None
         self.soundtrack_monitor_job: str | None = None
         self.current_soundtrack: Path | None = None
+        self.soundtrack_backend: str | None = None
+        self.pygame_mixer = None
+        self.soundtrack_process: subprocess.Popen | None = None
         self.screen_frame: tk.Frame | ttk.Frame | None = None
         self.tooltip_window: tk.Toplevel | None = None
 
@@ -1084,24 +1089,117 @@ class MikuGochiApp(tk.Tk):
         )
 
     def _play_soundtrack(self, track: Path) -> None:
-        self._close_soundtrack()
+        self._close_soundtrack(cancel_monitor=False)
         self.current_soundtrack = track
         sound_path = str(track)
 
         if not self._mci(f'open "{sound_path}" type mpegvideo alias soundtrack'):
+            if self._play_fallback_soundtrack(track):
+                return
             self.current_soundtrack = None
+            self.soundtrack_backend = None
             return
 
         self._mci("set soundtrack time format milliseconds")
         self._mci(f"setaudio soundtrack volume to {SOUNDTRACK_VOLUME}")
         if not self._mci("play soundtrack"):
-            self._close_soundtrack()
+            self._close_soundtrack(cancel_monitor=False)
+            if self._play_fallback_soundtrack(track):
+                return
             return
 
+        self.soundtrack_backend = "mci"
         duration_ms = self._soundtrack_duration_ms()
         if duration_ms <= 0:
             duration_ms = SOUNDTRACK_FALLBACK_DURATION_MS
         self.soundtrack_next_job = self.after(duration_ms, self._play_next_soundtrack)
+
+    def _play_fallback_soundtrack(self, track: Path) -> bool:
+        return self._play_pygame_soundtrack(track) or self._play_powershell_soundtrack(track)
+
+    def _play_pygame_soundtrack(self, track: Path) -> bool:
+        mixer = self._get_pygame_mixer()
+        if mixer is None:
+            return False
+
+        try:
+            mixer.music.load(str(track))
+            mixer.music.set_volume(SOUNDTRACK_VOLUME / 1000)
+            mixer.music.play()
+        except Exception:
+            return False
+
+        self.soundtrack_backend = "pygame"
+        return True
+
+    def _get_pygame_mixer(self):
+        if self.pygame_mixer is not None:
+            return self.pygame_mixer
+
+        try:
+            import pygame
+        except ImportError:
+            return None
+
+        try:
+            if not pygame.mixer.get_init():
+                pygame.mixer.init()
+        except pygame.error:
+            return None
+
+        self.pygame_mixer = pygame.mixer
+        return self.pygame_mixer
+
+    def _play_powershell_soundtrack(self, track: Path) -> bool:
+        self._close_powershell_soundtrack()
+        volume = max(0, min(1, SOUNDTRACK_VOLUME / 1000))
+        max_seconds = max(1, SOUNDTRACK_FALLBACK_DURATION_MS // 1000)
+        script = f"""
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName PresentationCore
+$player = New-Object System.Windows.Media.MediaPlayer
+$player.Open([Uri]::new(@'
+{track}
+'@))
+$player.Volume = {volume}
+$player.Play()
+$started = Get-Date
+while ($true) {{
+    Start-Sleep -Milliseconds 500
+    if ($player.NaturalDuration.HasTimeSpan -and $player.Position -ge $player.NaturalDuration.TimeSpan) {{
+        break
+    }}
+    if (((Get-Date) - $started).TotalSeconds -ge {max_seconds}) {{
+        break
+    }}
+}}
+$player.Stop()
+$player.Close()
+"""
+        encoded_script = base64.b64encode(script.encode("utf-16le")).decode("ascii")
+        creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+        try:
+            self.soundtrack_process = subprocess.Popen(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-STA",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-EncodedCommand",
+                    encoded_script,
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=creation_flags,
+            )
+        except OSError:
+            self.soundtrack_process = None
+            return False
+
+        self.soundtrack_backend = "powershell"
+        return True
 
     def _soundtrack_duration_ms(self) -> int:
         status_buffer = ctypes.create_unicode_buffer(64)
@@ -1124,6 +1222,18 @@ class MikuGochiApp(tk.Tk):
             return 0
 
     def _soundtrack_mode(self) -> str:
+        if self.soundtrack_backend == "pygame":
+            mixer = self._get_pygame_mixer()
+            if mixer is not None and mixer.music.get_busy():
+                return "playing"
+            return ""
+
+        if self.soundtrack_backend == "powershell":
+            if self.soundtrack_process is not None and self.soundtrack_process.poll() is None:
+                return "playing"
+            self.soundtrack_process = None
+            return ""
+
         status_buffer = ctypes.create_unicode_buffer(64)
         try:
             result = ctypes.windll.winmm.mciSendStringW(
@@ -1140,8 +1250,8 @@ class MikuGochiApp(tk.Tk):
 
         return status_buffer.value.strip().lower()
 
-    def _close_soundtrack(self) -> None:
-        if self.soundtrack_monitor_job is not None:
+    def _close_soundtrack(self, cancel_monitor: bool = True) -> None:
+        if cancel_monitor and self.soundtrack_monitor_job is not None:
             try:
                 self.after_cancel(self.soundtrack_monitor_job)
             except tk.TclError:
@@ -1157,6 +1267,26 @@ class MikuGochiApp(tk.Tk):
 
         self._mci("stop soundtrack")
         self._mci("close soundtrack")
+        if self.pygame_mixer is not None:
+            try:
+                self.pygame_mixer.music.stop()
+                self.pygame_mixer.music.unload()
+            except Exception:
+                pass
+        self._close_powershell_soundtrack()
+        self.soundtrack_backend = None
+
+    def _close_powershell_soundtrack(self) -> None:
+        if self.soundtrack_process is None:
+            return
+
+        if self.soundtrack_process.poll() is None:
+            try:
+                self.soundtrack_process.terminate()
+            except OSError:
+                pass
+
+        self.soundtrack_process = None
 
     def _update_death_countdown(self) -> None:
         if self.character_dead:
