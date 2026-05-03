@@ -73,12 +73,13 @@ CHARACTERS = {
     "meiko": {"name": "Meiko", "short_name": "Meiko"},
 }
 DEFAULT_CHARACTER_KEY = "miku"
-WEATHER_OPTIONS = ("clear", "partly_cloudy", "rainy")
+STARTING_WEATHER = "sunny"
+WEATHER_OPTIONS = ("sunny", "cloudy", "rainy")
 WEATHER_SPRITE_ROWS = {
-    ("clear", "day"): 0,
-    ("clear", "night"): 1,
-    ("partly_cloudy", "day"): 2,
-    ("partly_cloudy", "night"): 3,
+    ("sunny", "day"): 0,
+    ("sunny", "night"): 1,
+    ("cloudy", "day"): 2,
+    ("cloudy", "night"): 3,
     ("rainy", "day"): 4,
     ("rainy", "night"): 5,
 }
@@ -167,7 +168,7 @@ class MikuGochiApp(tk.Tk):
         self.game_view_mode = "normal"
         self.character_dead = False
         self.current_character_key: str | None = None
-        self.current_weather = "clear"
+        self.current_weather = STARTING_WEATHER
         self.weather_cycle_index = 0
         self.weather_animation_frame = 0
         self.last_repeated_action: str | None = None
@@ -976,7 +977,7 @@ class MikuGochiApp(tk.Tk):
 
     def _character_scene_layers(self) -> list[dict[str, object]]:
         time_name = self._scene_time_name()
-        weather_name = self.current_weather.replace("_", " ").title()
+        weather_name = self.current_weather.title()
         location = "Conbini sprite" if self.game_view_mode == "konbini" else "Room sprite"
         trash_text = f"Trash layer: Dirt {self.statuses['dirty_room']}/{MAX_STATUS_SEVERITY}"
         actor = "Vendor" if self.game_view_mode == "konbini" else "Character"
@@ -1042,7 +1043,7 @@ class MikuGochiApp(tk.Tk):
             return
 
         self.weather_cycle_index = cycle_index
-        self.current_weather = random.choice(WEATHER_OPTIONS)
+        self.current_weather = self._choose_next_weather(self.current_weather)
         self.weather_animation_frame = 0
         self._save_progress()
 
@@ -1304,7 +1305,7 @@ class MikuGochiApp(tk.Tk):
         self.inventory = DEFAULT_INVENTORY.copy()
         self.character_dead = False
         self.current_character_key = None
-        self.current_weather = "clear"
+        self.current_weather = STARTING_WEATHER
         self.weather_cycle_index = 0
         self.weather_animation_frame = 0
         self.death_countdown_remaining = None
@@ -1324,7 +1325,7 @@ class MikuGochiApp(tk.Tk):
         self.inventory = DEFAULT_INVENTORY.copy()
         self.character_dead = False
         self.current_character_key = self._choose_new_character_key(self.current_character_key)
-        self.current_weather = random.choice(WEATHER_OPTIONS)
+        self.current_weather = STARTING_WEATHER
         self.weather_cycle_index = 0
         self.weather_animation_frame = 0
         self.death_countdown_remaining = None
@@ -1881,15 +1882,25 @@ $player.Close()
         return random.choice(choices)
 
     @staticmethod
+    def _choose_next_weather(current_weather: str) -> str:
+        choices = [weather for weather in WEATHER_OPTIONS if weather != current_weather]
+        if not choices:
+            choices = list(WEATHER_OPTIONS)
+
+        return random.choice(choices)
+
+    @staticmethod
     def _load_weather(value: object) -> str:
-        if value == "sunny":
-            return "clear"
+        if value == "clear":
+            return "sunny"
         if value == "cloudy":
-            return "partly_cloudy"
+            return "cloudy"
+        if value == "partly_cloudy":
+            return "cloudy"
         if isinstance(value, str) and value in WEATHER_OPTIONS:
             return value
 
-        return "clear"
+        return STARTING_WEATHER
 
     @staticmethod
     def _load_weather_cycle_index(value: object) -> int:
