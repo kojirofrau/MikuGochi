@@ -45,6 +45,11 @@ LOCATION_LAYER_SPRITESHEET = (
     / "locations"
     / "room_shop_layer_spritesheet.png"
 )
+GARBAGE_LAYER_SPRITESHEET = (
+    Path(__file__).with_name("assets")
+    / "garbage"
+    / "garbage_layer_spritesheet.png"
+)
 NOTIFICATION_SOUND_VOLUME = 500
 SOUNDTRACK_VOLUME = NOTIFICATION_SOUND_VOLUME // 2
 NOTIFICATION_SOUND_CLOSE_DELAY_MS = 5_000
@@ -110,6 +115,14 @@ LOCATION_LAYER_SPRITES = {
     ("normal", "night"): (0, 1),
     ("konbini", "night"): (1, 1),
 }
+GARBAGE_SPRITE_WIDTH = 120
+GARBAGE_SPRITE_HEIGHT = 50
+GARBAGE_SPRITE_COUNT = 3
+GARBAGE_SPRITE_SPOTS = (
+    (224, 40),
+    (50, 118),
+    (356, 61),
+)
 
 
 ITEMS = {
@@ -199,6 +212,8 @@ class MikuGochiApp(tk.Tk):
         self.current_weather_effect: str | None = self._choose_weather_effect(self.current_weather)
         self.weather_cycle_index = 0
         self.weather_animation_frame = 0
+        self.trash_layer_status: int | None = None
+        self.trash_layer_placements: list[tuple[int, int]] = []
         self.last_repeated_action: str | None = None
         self.repeated_action_count = 0
         self.sound_enabled = True
@@ -230,6 +245,7 @@ class MikuGochiApp(tk.Tk):
         self.weather_background_frames = self._load_weather_background_frames()
         self.weather_effect_frames = self._load_weather_effect_frames()
         self.location_layer_frames = self._load_location_layer_frames()
+        self.garbage_layer_frames = self._load_garbage_layer_frames()
 
         self.configure(bg="#f6f7fb")
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -1002,6 +1018,15 @@ class MikuGochiApp(tk.Tk):
                     )
                 else:
                     canvas.create_image(0, 0, image=image, anchor="nw", tags=("scene",))
+            elif layer["kind"] == "trash":
+                for sprite_index, spot_index in self._current_trash_layer_placements():
+                    image = self._garbage_sprite_image(sprite_index)
+                    if image is None:
+                        continue
+
+                    spot_x, spot_y = GARBAGE_SPRITE_SPOTS[spot_index]
+                    canvas_y = CHARACTER_AREA_HEIGHT - spot_y - GARBAGE_SPRITE_HEIGHT
+                    canvas.create_image(spot_x, canvas_y, image=image, anchor="nw", tags=("scene",))
             elif layer["kind"] == "text":
                 canvas.create_text(
                     layer["x"],
@@ -1036,7 +1061,6 @@ class MikuGochiApp(tk.Tk):
         time_name = self._scene_time_name()
         weather_name = self.current_weather.title()
         location = "Conbini sprite" if self.game_view_mode == "konbini" else "Room sprite"
-        trash_text = f"Trash layer: Dirt {self.statuses['dirty_room']}/{MAX_STATUS_SEVERITY}"
         actor = "Vendor" if self.game_view_mode == "konbini" else "Character"
 
         return [
@@ -1060,12 +1084,7 @@ class MikuGochiApp(tk.Tk):
                 "outline": "#79cabe",
             },
             {
-                "kind": "text",
-                "text": f"Layer 4: {trash_text}",
-                "x": 96,
-                "y": 236,
-                "anchor": "w",
-                "font": ("Segoe UI", 11),
+                "kind": "trash",
             },
             {
                 "kind": "text",
@@ -1151,6 +1170,41 @@ class MikuGochiApp(tk.Tk):
     def _current_location_layer_image(self) -> ImageTk.PhotoImage | None:
         mode = "konbini" if self.game_view_mode == "konbini" else "normal"
         return self.location_layer_frames.get((mode, self._scene_time_name()))
+
+    def _current_trash_layer_placements(self) -> list[tuple[int, int]]:
+        status = min(MAX_STATUS_SEVERITY, max(0, self.statuses["dirty_room"]))
+        if status != self.trash_layer_status:
+            existing = {
+                sprite_index: spot_index
+                for sprite_index, spot_index in self.trash_layer_placements
+                if sprite_index < status
+            }
+            self.trash_layer_status = status
+            if status == 0:
+                self.trash_layer_placements = []
+            else:
+                used_spots = set(existing.values())
+                available_spots = [
+                    spot_index
+                    for spot_index in range(len(GARBAGE_SPRITE_SPOTS))
+                    if spot_index not in used_spots
+                ]
+                random.shuffle(available_spots)
+                placements: list[tuple[int, int]] = []
+                for sprite_index in range(status):
+                    spot_index = existing.get(sprite_index)
+                    if spot_index is None:
+                        spot_index = available_spots.pop()
+                    placements.append((sprite_index, spot_index))
+                self.trash_layer_placements = placements
+
+        return self.trash_layer_placements
+
+    def _garbage_sprite_image(self, sprite_index: int) -> ImageTk.PhotoImage | None:
+        if not 0 <= sprite_index < len(self.garbage_layer_frames):
+            return None
+
+        return self.garbage_layer_frames[sprite_index]
 
     def _weather_fill(self) -> str:
         if self._is_night_scene():
@@ -2217,6 +2271,29 @@ $player.Close()
                 )
             )
             frames[key] = ImageTk.PhotoImage(crop)
+
+        return frames
+
+    def _load_garbage_layer_frames(self) -> list[ImageTk.PhotoImage]:
+        if not GARBAGE_LAYER_SPRITESHEET.exists():
+            return []
+
+        try:
+            sheet = Image.open(GARBAGE_LAYER_SPRITESHEET).convert("RGBA")
+        except OSError:
+            return []
+
+        frames: list[ImageTk.PhotoImage] = []
+        for sprite_index in range(GARBAGE_SPRITE_COUNT):
+            crop = sheet.crop(
+                (
+                    sprite_index * GARBAGE_SPRITE_WIDTH,
+                    0,
+                    (sprite_index + 1) * GARBAGE_SPRITE_WIDTH,
+                    GARBAGE_SPRITE_HEIGHT,
+                )
+            )
+            frames.append(ImageTk.PhotoImage(crop))
 
         return frames
 

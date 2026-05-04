@@ -1,31 +1,45 @@
 {
   "statuses": {
-    "hunger": 1,
-    "sickness": 0,
-    "dirty_room": 1,
-    "lazy": 1
+    "hunger": 3,
+    "sickness": 3,
+    "dirty_room": 3,
+    "lazy": 3
   },
   "statistics": {
-    "games_played": 14,
-    "character_deaths": 5,
+    "games_played": 15,
+    "character_deaths": 6,
     "times_fed": 19,
     "times_healed": 16,
-    "times_cleaned": 13,
-    "times_entertained": 15
+    "times_cleaned": 16,
+    "times_entertained": 16
   },
   "current_game": {
-    "started_at": 1777794108,
-    "times_fed": 2,
+    "started_at": 1777917836,
+    "times_fed": 0,
     "times_healed": 0,
     "times_cleaned": 3,
-    "times_entertained": 2,
-    "times_rested": 3,
-    "times_worked": 2,
-    "items_bought": 3,
+    "times_entertained": 1,
+    "times_rested": 2,
+    "times_worked": 6,
+    "items_bought": 0,
     "items_used": 0,
-    "money_earned": 4000
+    "money_earned": 12000
   },
-  "last_game": null,
+  "last_game": {
+    "character": "meiko",
+    "survived_minutes": 56,
+    "money": 12000,
+    "times_fed": 0,
+    "times_healed": 0,
+    "times_cleaned": 3,
+    "times_entertained": 1,
+    "times_rested": 2,
+    "times_worked": 6,
+    "items_bought": 0,
+    "items_used": 0,
+    "money_earned": 12000,
+    "score": 1060
+  },
   "leaderboard": [
     {
       "character": "miku",
@@ -41,6 +55,21 @@
       "items_bought": 6,
       "items_used": 3,
       "score": 1520
+    },
+    {
+      "character": "meiko",
+      "score": 1060,
+      "survived_minutes": 56,
+      "money": 12000,
+      "money_earned": 12000,
+      "times_fed": 0,
+      "times_healed": 0,
+      "times_cleaned": 3,
+      "times_entertained": 1,
+      "times_rested": 2,
+      "times_worked": 6,
+      "items_bought": 0,
+      "items_used": 0
     },
     {
       "character": "miku",
@@ -88,20 +117,20 @@
       "score": 290
     }
   ],
-  "energy": 75,
-  "money": 2250,
+  "energy": 40,
+  "money": 12000,
   "inventory": {
-    "energy_drink": 1,
+    "energy_drink": 0,
     "medicine": 0,
-    "noodles": 1,
-    "magazine": 1
+    "noodles": 0,
+    "magazine": 0
   },
-  "character_dead": false,
-  "current_character": "kaito",
-  "current_weather": "rainy",
-  "current_weather_effect": "snow",
-  "weather_cycle_index": 1,
+  "character_dead": true,
+  "current_character": "meiko",
+  "current_weather": "sunny",
+  "current_weather_effect": "sakura_petals",
+  "weather_cycle_index": 28,
   "last_repeated_action": "work",
-  "repeated_action_count": 1,
-  "sound_enabled": true
+  "repeated_action_count": 2,
+  "sound_enabled": false
 }
