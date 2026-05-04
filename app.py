@@ -459,7 +459,6 @@ class MikuGochiApp(tk.Tk):
             foreground="#b3261e",
             background=CHARACTER_AREA_BG,
         )
-        self.death_timer_label.place(relx=1.0, x=-14, rely=1.0, y=-18, anchor="se")
 
         controls_frame = ttk.Frame(frame, padding=(16, 14, 16, 12))
         controls_frame.pack(fill="both", expand=True)
@@ -956,8 +955,10 @@ class MikuGochiApp(tk.Tk):
         if self.death_timer_label is not None:
             if self.death_countdown_remaining is None:
                 self.death_timer_label.configure(text="")
+                self.death_timer_label.place_forget()
             else:
                 self.death_timer_label.configure(text=f"Danger: {self.death_countdown_remaining}s")
+                self.death_timer_label.place(relx=1.0, x=-14, rely=1.0, y=-18, anchor="se")
 
     def _draw_character_scene(self) -> None:
         canvas = self.character_scene_canvas
