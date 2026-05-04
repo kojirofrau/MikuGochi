@@ -40,6 +40,11 @@ WEATHER_EFFECTS_SPRITESHEET = (
     / "effects"
     / "weather_effects_spritesheet.png"
 )
+LOCATION_LAYER_SPRITESHEET = (
+    Path(__file__).with_name("assets")
+    / "locations"
+    / "room_shop_layer_spritesheet.png"
+)
 NOTIFICATION_SOUND_VOLUME = 500
 SOUNDTRACK_VOLUME = NOTIFICATION_SOUND_VOLUME // 2
 NOTIFICATION_SOUND_CLOSE_DELAY_MS = 5_000
@@ -98,6 +103,12 @@ WEATHER_EFFECT_SPRITE_ROWS = {
     "raindrops": 0,
     "sakura_petals": 1,
     "snow": 2,
+}
+LOCATION_LAYER_SPRITES = {
+    ("normal", "day"): (0, 0),
+    ("konbini", "day"): (1, 0),
+    ("normal", "night"): (0, 1),
+    ("konbini", "night"): (1, 1),
 }
 
 
@@ -218,6 +229,7 @@ class MikuGochiApp(tk.Tk):
         self.sound_images = self._create_sound_images()
         self.weather_background_frames = self._load_weather_background_frames()
         self.weather_effect_frames = self._load_weather_effect_frames()
+        self.location_layer_frames = self._load_location_layer_frames()
 
         self.configure(bg="#f6f7fb")
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -967,6 +979,29 @@ class MikuGochiApp(tk.Tk):
                 image = self._current_weather_effect_image()
                 if image is not None:
                     canvas.create_image(0, 0, image=image, anchor="nw", tags=("scene",))
+            elif layer["kind"] == "location":
+                image = self._current_location_layer_image()
+                if image is None:
+                    canvas.create_rectangle(
+                        layer["x1"],
+                        layer["y1"],
+                        layer["x2"],
+                        layer["y2"],
+                        fill=layer["fill"],
+                        outline=layer["outline"],
+                        tags=("scene",),
+                    )
+                    canvas.create_text(
+                        layer["x"],
+                        layer["y"],
+                        text=layer["text"],
+                        anchor="center",
+                        fill=layer.get("color", "#263238"),
+                        font=layer.get("font", ("Segoe UI", 13, "bold")),
+                        tags=("scene",),
+                    )
+                else:
+                    canvas.create_image(0, 0, image=image, anchor="nw", tags=("scene",))
             elif layer["kind"] == "text":
                 canvas.create_text(
                     layer["x"],
@@ -1013,7 +1048,7 @@ class MikuGochiApp(tk.Tk):
                 "kind": "weather_effect",
             },
             {
-                "kind": "panel",
+                "kind": "location",
                 "text": f"Layer 3: {location}",
                 "x1": 76,
                 "y1": 156,
@@ -1112,6 +1147,10 @@ class MikuGochiApp(tk.Tk):
             return None
 
         return frames[self.weather_animation_frame % len(frames)]
+
+    def _current_location_layer_image(self) -> ImageTk.PhotoImage | None:
+        mode = "konbini" if self.game_view_mode == "konbini" else "normal"
+        return self.location_layer_frames.get((mode, self._scene_time_name()))
 
     def _weather_fill(self) -> str:
         if self._is_night_scene():
@@ -2155,6 +2194,29 @@ $player.Close()
                 )
                 row_frames.append(ImageTk.PhotoImage(crop))
             frames[effect] = row_frames
+
+        return frames
+
+    def _load_location_layer_frames(self) -> dict[tuple[str, str], ImageTk.PhotoImage]:
+        if not LOCATION_LAYER_SPRITESHEET.exists():
+            return {}
+
+        try:
+            sheet = Image.open(LOCATION_LAYER_SPRITESHEET).convert("RGBA")
+        except OSError:
+            return {}
+
+        frames: dict[tuple[str, str], ImageTk.PhotoImage] = {}
+        for key, (column, row) in LOCATION_LAYER_SPRITES.items():
+            crop = sheet.crop(
+                (
+                    column * WINDOW_WIDTH,
+                    row * CHARACTER_AREA_HEIGHT,
+                    (column + 1) * WINDOW_WIDTH,
+                    (row + 1) * CHARACTER_AREA_HEIGHT,
+                )
+            )
+            frames[key] = ImageTk.PhotoImage(crop)
 
         return frames
 
