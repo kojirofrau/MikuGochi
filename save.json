@@ -113,9 +113,9 @@
   },
   "character_dead": false,
   "current_character": "rin",
-  "current_weather": "sunny",
-  "current_weather_effect": "sakura_petals",
-  "weather_cycle_index": 0,
+  "current_weather": "rainy",
+  "current_weather_effect": "raindrops",
+  "weather_cycle_index": 488,
   "last_repeated_action": null,
   "repeated_action_count": 0,
   "sound_enabled": false
