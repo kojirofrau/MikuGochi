@@ -50,32 +50,6 @@ GARBAGE_LAYER_SPRITESHEET = (
     / "garbage"
     / "garbage_layer_spritesheet.png"
 )
-MIKU_ACTIONS_SPRITESHEET = (
-    Path(__file__).with_name("assets")
-    / "characters"
-    / "miku"
-    / "miku_actions_spritesheet.png"
-)
-CHARACTER_SPRITE_WIDTH = 170
-CHARACTER_SPRITE_HEIGHT = 190
-CHARACTER_SPRITE_COLUMNS = 10
-CHARACTER_SPRITE_ROWS = 11
-CHARACTER_SPRITE_X = 180
-CHARACTER_SPRITE_BOTTOM_Y = 40
-CHARACTER_ANIMATION_INTERVAL_MS = 140
-MIKU_ANIMATION_ROWS = {
-    "idle_dance": 0,
-    "idle_console": 1,
-    "feed_protein_bar": 2,
-    "feed_noodles": 3,
-    "fun_music": 4,
-    "fun_magazine": 5,
-    "heal_blanket": 6,
-    "heal_pills": 7,
-    "clean_mop": 8,
-    "clean_wall": 9,
-    "death": 10,
-}
 NOTIFICATION_SOUND_VOLUME = 500
 SOUNDTRACK_VOLUME = NOTIFICATION_SOUND_VOLUME // 2
 NOTIFICATION_SOUND_CLOSE_DELAY_MS = 5_000
@@ -247,11 +221,6 @@ class MikuGochiApp(tk.Tk):
         self.death_countdown_job: str | None = None
         self.death_countdown_remaining: int | None = None
         self.weather_animation_job: str | None = None
-        self.character_animation_job: str | None = None
-        self.character_animation_row: int | None = None
-        self.character_animation_frame = 0
-        self.character_animation_loop = True
-        self.character_animation_dead = False
         self.sound_close_job: str | None = None
         self.soundtrack_next_job: str | None = None
         self.soundtrack_monitor_job: str | None = None
@@ -277,7 +246,6 @@ class MikuGochiApp(tk.Tk):
         self.weather_effect_frames = self._load_weather_effect_frames()
         self.location_layer_frames = self._load_location_layer_frames()
         self.garbage_layer_frames = self._load_garbage_layer_frames()
-        self.miku_action_frames = self._load_miku_action_frames()
 
         self.configure(bg="#f6f7fb")
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -295,7 +263,6 @@ class MikuGochiApp(tk.Tk):
 
         self._cancel_death_countdown()
         self._cancel_weather_animation()
-        self._cancel_character_animation()
 
         if self.screen_frame is not None:
             self.screen_frame.destroy()
@@ -310,10 +277,6 @@ class MikuGochiApp(tk.Tk):
         self.mood_label = None
         self.character_state_label = None
         self.death_timer_label = None
-        self.character_animation_row = None
-        self.character_animation_frame = 0
-        self.character_animation_loop = True
-        self.character_animation_dead = False
         self._hide_tooltip()
 
     def _show_menu(
@@ -523,8 +486,6 @@ class MikuGochiApp(tk.Tk):
         self.feedback_label.pack(fill="x", pady=(16, 0))
 
         self._refresh_status_ui()
-        self._start_idle_character_animation()
-        self._schedule_character_animation()
         self._schedule_weather_animation()
         if mode == "normal":
             self._update_death_countdown()
@@ -1068,25 +1029,15 @@ class MikuGochiApp(tk.Tk):
                     canvas_y = CHARACTER_AREA_HEIGHT - spot_y - GARBAGE_SPRITE_HEIGHT
                     canvas.create_image(spot_x, canvas_y, image=image, anchor="nw", tags=("scene",))
             elif layer["kind"] == "character":
-                image = self._current_character_image()
-                if image is None:
-                    canvas.create_text(
-                        layer.get("text_x", layer["x"]),
-                        layer.get("text_y", layer["y"]),
-                        text=layer["text"],
-                        anchor=layer.get("anchor", "center"),
-                        fill=layer.get("color", "#263238"),
-                        font=layer.get("font", ("Segoe UI", 13, "bold")),
-                        tags=("scene",),
-                    )
-                else:
-                    canvas.create_image(
-                        layer["x"],
-                        layer["y"],
-                        image=image,
-                        anchor=layer.get("anchor", "nw"),
-                        tags=("scene",),
-                    )
+                canvas.create_text(
+                    layer["x"],
+                    layer["y"],
+                    text=layer["text"],
+                    anchor=layer.get("anchor", "center"),
+                    fill=layer.get("color", "#263238"),
+                    font=layer.get("font", ("Segoe UI", 13, "bold")),
+                    tags=("scene",),
+                )
             elif layer["kind"] == "text":
                 canvas.create_text(
                     layer["x"],
@@ -1149,10 +1100,8 @@ class MikuGochiApp(tk.Tk):
             {
                 "kind": "character",
                 "text": f"Layer 5: {actor} - {self._character_state_text()}",
-                "x": CHARACTER_SPRITE_X,
-                "y": CHARACTER_AREA_HEIGHT - CHARACTER_SPRITE_BOTTOM_Y - CHARACTER_SPRITE_HEIGHT,
-                "text_x": WINDOW_WIDTH // 2,
-                "text_y": 218,
+                "x": WINDOW_WIDTH // 2,
+                "y": 218,
                 "font": ("Segoe UI", 18, "bold"),
             },
             {
@@ -1211,78 +1160,6 @@ class MikuGochiApp(tk.Tk):
             pass
         self.weather_animation_job = None
 
-    def _start_idle_character_animation(self) -> None:
-        if not self._can_show_miku_sprite() or self.character_animation_dead:
-            return
-
-        if self.character_animation_row is not None and self.character_animation_loop:
-            return
-
-        self._start_character_animation(random.choice(("idle_dance", "idle_console")), loop=True)
-
-    def _start_character_animation(self, name: str, loop: bool = False) -> None:
-        if not self._can_show_miku_sprite():
-            return
-
-        row = MIKU_ANIMATION_ROWS.get(name)
-        if row is None:
-            return
-
-        self.character_animation_row = row
-        self.character_animation_frame = 0
-        self.character_animation_loop = loop
-        self.character_animation_dead = name == "death"
-        self._refresh_status_ui()
-        self._schedule_character_animation()
-
-    def _schedule_character_animation(self) -> None:
-        if self.character_animation_job is not None or self.character_scene_canvas is None:
-            return
-
-        if not self._can_show_miku_sprite() or self.character_animation_row is None:
-            return
-
-        self.character_animation_job = self.after(
-            CHARACTER_ANIMATION_INTERVAL_MS,
-            self._advance_character_animation,
-        )
-
-    def _advance_character_animation(self) -> None:
-        self.character_animation_job = None
-        if self.character_scene_canvas is None:
-            return
-
-        if not self._can_show_miku_sprite() or self.character_animation_row is None:
-            return
-
-        self.character_animation_frame += 1
-        if self.character_animation_frame >= CHARACTER_SPRITE_COLUMNS:
-            if self.character_animation_dead:
-                self.character_animation_frame = CHARACTER_SPRITE_COLUMNS - 1
-                self._refresh_status_ui()
-                self.after(700, self._show_death_screen)
-                return
-
-            if self.character_animation_loop:
-                self.character_animation_frame = 0
-            else:
-                self.character_animation_row = None
-                self._start_idle_character_animation()
-                return
-
-        self._refresh_status_ui()
-        self._schedule_character_animation()
-
-    def _cancel_character_animation(self) -> None:
-        if self.character_animation_job is None:
-            return
-
-        try:
-            self.after_cancel(self.character_animation_job)
-        except tk.TclError:
-            pass
-        self.character_animation_job = None
-
     def _current_weather_image(self) -> ImageTk.PhotoImage | None:
         time_name = self._scene_time_name()
         frames = self.weather_background_frames.get((self.current_weather, time_name), [])
@@ -1300,29 +1177,6 @@ class MikuGochiApp(tk.Tk):
             return None
 
         return frames[self.weather_animation_frame % len(frames)]
-
-    def _current_character_image(self) -> ImageTk.PhotoImage | None:
-        if not self._can_show_miku_sprite():
-            return None
-
-        if self.character_animation_row is None:
-            self._start_idle_character_animation()
-
-        if self.character_animation_row is None:
-            return None
-
-        row_frames = self.miku_action_frames.get(self.character_animation_row, [])
-        if not row_frames:
-            return None
-
-        return row_frames[self.character_animation_frame % len(row_frames)]
-
-    def _can_show_miku_sprite(self) -> bool:
-        return (
-            self._character_key() == "miku"
-            and self.game_view_mode != "konbini"
-            and bool(self.miku_action_frames)
-        )
 
     def _current_location_layer_image(self) -> ImageTk.PhotoImage | None:
         mode = "konbini" if self.game_view_mode == "konbini" else "normal"
@@ -1375,7 +1229,6 @@ class MikuGochiApp(tk.Tk):
         statistic_key: str,
         clear_message: str,
         idle_message: str,
-        animation_name: str,
     ) -> None:
         if self.energy < CARE_ACTION_ENERGY_COST:
             self.feedback_label.configure(text="Not enough energy. Rest first.")
@@ -1390,7 +1243,6 @@ class MikuGochiApp(tk.Tk):
             self.current_game_statistics[statistic_key] += 1
             self._reset_repeated_action_streak()
             self.feedback_label.configure(text=clear_message)
-            self._start_character_animation(animation_name)
             self._refresh_status_ui()
             self._update_death_countdown()
             self._save_progress()
@@ -1406,7 +1258,6 @@ class MikuGochiApp(tk.Tk):
             "times_fed",
             "Fed. Hunger reduced.",
             "Not hungry right now.",
-            "feed_protein_bar",
         )
 
     def heal(self) -> None:
@@ -1415,7 +1266,6 @@ class MikuGochiApp(tk.Tk):
             "times_healed",
             "Healed. Health improved.",
             "Already healthy.",
-            "heal_blanket",
         )
 
     def clean(self) -> None:
@@ -1424,7 +1274,6 @@ class MikuGochiApp(tk.Tk):
             "times_cleaned",
             "Cleaned. Dirt reduced.",
             "Room is already clean.",
-            random.choice(("clean_mop", "clean_wall")),
         )
 
     def entertain(self) -> None:
@@ -1433,7 +1282,6 @@ class MikuGochiApp(tk.Tk):
             "times_entertained",
             "Entertained. Laziness reduced.",
             "Already entertained.",
-            "fun_music",
         )
 
     def open_konbini(self) -> None:
@@ -1499,17 +1347,6 @@ class MikuGochiApp(tk.Tk):
         self._show_game(mode="inventory")
         if self.feedback_label is not None:
             self.feedback_label.configure(text=message)
-        item_animation = self._item_animation_name(key)
-        if item_animation is not None:
-            self._start_character_animation(item_animation)
-
-    @staticmethod
-    def _item_animation_name(key: str) -> str | None:
-        return {
-            "medicine": "heal_pills",
-            "noodles": "feed_noodles",
-            "magazine": "fun_magazine",
-        }.get(key)
 
     def _can_take_repeated_action(self, action: str) -> bool:
         if self.death_countdown_remaining is not None:
@@ -2136,11 +1973,7 @@ $player.Close()
         self._close_timer_sound()
         self._play_notification_sound()
         self._save_progress()
-        if self._can_show_miku_sprite() and self.character_scene_canvas is not None:
-            self._disable_screen_buttons()
-            self._start_character_animation("death")
-        else:
-            self._show_death_screen()
+        self._show_death_screen()
 
     def _is_death_condition(self) -> bool:
         return all(severity >= MAX_STATUS_SEVERITY for severity in self.statuses.values())
@@ -2509,39 +2342,6 @@ $player.Close()
                 )
             )
             frames.append(ImageTk.PhotoImage(crop))
-
-        return frames
-
-    def _load_miku_action_frames(self) -> dict[int, list[ImageTk.PhotoImage]]:
-        if not MIKU_ACTIONS_SPRITESHEET.exists():
-            return {}
-
-        try:
-            sheet = Image.open(MIKU_ACTIONS_SPRITESHEET).convert("RGBA")
-        except OSError:
-            return {}
-
-        expected_size = (
-            CHARACTER_SPRITE_COLUMNS * CHARACTER_SPRITE_WIDTH,
-            CHARACTER_SPRITE_ROWS * CHARACTER_SPRITE_HEIGHT,
-        )
-        if sheet.size != expected_size:
-            return {}
-
-        frames: dict[int, list[ImageTk.PhotoImage]] = {}
-        for row in range(CHARACTER_SPRITE_ROWS):
-            row_frames: list[ImageTk.PhotoImage] = []
-            for frame in range(CHARACTER_SPRITE_COLUMNS):
-                crop = sheet.crop(
-                    (
-                        frame * CHARACTER_SPRITE_WIDTH,
-                        row * CHARACTER_SPRITE_HEIGHT,
-                        (frame + 1) * CHARACTER_SPRITE_WIDTH,
-                        (row + 1) * CHARACTER_SPRITE_HEIGHT,
-                    )
-                )
-                row_frames.append(ImageTk.PhotoImage(crop))
-            frames[row] = row_frames
 
         return frames
 

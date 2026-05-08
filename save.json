@@ -113,9 +113,9 @@
   },
   "character_dead": false,
   "current_character": "miku",
-  "current_weather": "cloudy",
-  "current_weather_effect": null,
-  "weather_cycle_index": 7,
+  "current_weather": "sunny",
+  "current_weather_effect": "sakura_petals",
+  "weather_cycle_index": 1865,
   "last_repeated_action": null,
   "repeated_action_count": 0,
   "sound_enabled": false
