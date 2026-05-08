@@ -3,6 +3,7 @@ import base64
 import ctypes
 import json
 import subprocess
+import sys
 import time
 from pathlib import Path
 import tkinter as tk
@@ -19,38 +20,41 @@ MENU_BUTTON_WIDTH = 64
 STATUS_CHECK_INTERVAL_MS = 20_000
 STATUS_CHANGE_CHANCE = 0.6
 DEATH_COUNTDOWN_SECONDS = 30
-SAVE_FILE = Path(__file__).with_name("save.json")
-NOTIFICATION_SOUND_FILE = Path(__file__).with_name("assets") / "audio" / "notification_1.mp3"
-TIMER_SOUND_FILE = Path(__file__).with_name("assets") / "audio" / "notification_timer_1.mp3"
+APP_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
+RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", APP_DIR))
+ASSETS_DIR = RESOURCE_DIR / "assets"
+SAVE_FILE = APP_DIR / "save.json"
+NOTIFICATION_SOUND_FILE = ASSETS_DIR / "audio" / "notification_1.mp3"
+TIMER_SOUND_FILE = ASSETS_DIR / "audio" / "notification_timer_1.mp3"
 SOUNDTRACK_FILES = [
-    Path(__file__).with_name("assets") / "audio" / "soundtrack_beautiful_ruin.mp3",
-    Path(__file__).with_name("assets") / "audio" / "soundtrack_love_wa_survival.mp3",
-    Path(__file__).with_name("assets") / "audio" / "soundtrack_monomi-sensei_no_kyouiku_jisshuu.mp3",
-    Path(__file__).with_name("assets") / "audio" / "soundtrack_re__beautiful_morning.mp3",
+    ASSETS_DIR / "audio" / "soundtrack_beautiful_ruin.mp3",
+    ASSETS_DIR / "audio" / "soundtrack_love_wa_survival.mp3",
+    ASSETS_DIR / "audio" / "soundtrack_monomi-sensei_no_kyouiku_jisshuu.mp3",
+    ASSETS_DIR / "audio" / "soundtrack_re__beautiful_morning.mp3",
 ]
 WEATHER_BACKGROUND_SPRITESHEET = (
-    Path(__file__).with_name("assets")
+    ASSETS_DIR
     / "weather"
     / "background"
     / "weather_background_spritesheet.png"
 )
 WEATHER_EFFECTS_SPRITESHEET = (
-    Path(__file__).with_name("assets")
+    ASSETS_DIR
     / "weather"
     / "effects"
     / "weather_effects_spritesheet.png"
 )
 LOCATION_LAYER_SPRITESHEET = (
-    Path(__file__).with_name("assets")
+    ASSETS_DIR
     / "locations"
     / "room_shop_layer_spritesheet.png"
 )
 GARBAGE_LAYER_SPRITESHEET = (
-    Path(__file__).with_name("assets")
+    ASSETS_DIR
     / "garbage"
     / "garbage_layer_spritesheet.png"
 )
-MIKU_SPRITE_DIR = Path(__file__).with_name("assets") / "characters" / "miku"
+MIKU_SPRITE_DIR = ASSETS_DIR / "characters" / "miku"
 CHARACTER_SPRITE_WIDTH = 170
 CHARACTER_SPRITE_HEIGHT = 190
 CHARACTER_SPRITE_X = 180
@@ -289,7 +293,7 @@ class MikuGochiApp(tk.Tk):
                 pass
             self.status_roll_job = None
 
-        self._cancel_death_countdown()
+        self._cancel_death_countdown_job()
         self._cancel_weather_animation()
         self._cancel_character_animation()
 
@@ -311,6 +315,8 @@ class MikuGochiApp(tk.Tk):
         self.character_animation_loop = True
         self.character_animation_dead = False
         self._hide_tooltip()
+        if self.death_countdown_remaining is not None and not self.character_dead:
+            self._schedule_death_countdown_tick()
 
     def _show_menu(
         self,
@@ -654,6 +660,7 @@ class MikuGochiApp(tk.Tk):
         ).pack(fill="x", pady=(8, 0))
 
     def _show_death_screen(self) -> None:
+        self._cancel_death_countdown()
         self._clear_screen()
 
         frame = tk.Frame(self, bg="#f6f7fb", padx=36, pady=28)
@@ -2070,7 +2077,7 @@ $player.Close()
                 self.death_countdown_remaining = DEATH_COUNTDOWN_SECONDS
                 self.feedback_label.configure(text="Everything is critical. Help Miku before time runs out.")
                 self._play_timer_sound()
-                self._schedule_death_countdown_tick()
+            self._schedule_death_countdown_tick()
         else:
             self._cancel_death_countdown()
 
@@ -2101,15 +2108,17 @@ $player.Close()
         self._schedule_death_countdown_tick()
 
     def _cancel_death_countdown(self) -> None:
+        self._cancel_death_countdown_job()
+        self.death_countdown_remaining = None
+        self._close_timer_sound()
+
+    def _cancel_death_countdown_job(self) -> None:
         if self.death_countdown_job is not None:
             try:
                 self.after_cancel(self.death_countdown_job)
             except tk.TclError:
                 pass
             self.death_countdown_job = None
-
-        self.death_countdown_remaining = None
-        self._close_timer_sound()
 
     def _kill_character(self) -> None:
         self.last_game_statistics = {
@@ -2130,7 +2139,7 @@ $player.Close()
         self._record_leaderboard_score(self.last_game_statistics)
         self.statistics["character_deaths"] += 1
         self.character_dead = True
-        self._close_timer_sound()
+        self._cancel_death_countdown()
         self._play_notification_sound()
         self._save_progress()
         if self._can_show_miku_sprite() and self.character_scene_canvas is not None:
