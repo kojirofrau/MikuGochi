@@ -5,7 +5,7 @@ a = Analysis(
     ['MikuGochi.pyw'],
     pathex=[],
     binaries=[],
-    datas=[('D:\\Frau\\Разработка\\MikuGochi\\assets', 'assets')],
+    datas=[('assets', 'assets')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -35,4 +35,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=['assets\\icons\\mikugochi.ico'],
 )

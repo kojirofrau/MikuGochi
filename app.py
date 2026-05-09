@@ -447,6 +447,18 @@ class MikuGochiApp(tk.Tk):
             tags=tags,
         )
 
+    def _add_watermark(self, parent: tk.Frame | ttk.Frame) -> None:
+        label = tk.Label(
+            parent,
+            text="made by frau kojiro",
+            anchor="e",
+            bg="#f6f7fb",
+            fg="#000000",
+            font=(FONT_FAMILY, 7),
+        )
+        label.place(relx=1.0, rely=1.0, x=-8, y=-6, anchor="se")
+        label.lift()
+
     def _clear_screen(self) -> None:
         if self.status_roll_job is not None:
             try:
@@ -576,6 +588,7 @@ class MikuGochiApp(tk.Tk):
         ttk.Button(frame, text="Statistics", command=self._show_statistics).pack(fill="x", pady=6, ipady=6)
         ttk.Button(frame, text="Top Scores", command=self._show_top_scores).pack(fill="x", pady=6, ipady=6)
         ttk.Button(frame, text="Close", command=self._on_close).pack(fill="x", pady=6, ipady=6)
+        self._add_watermark(frame)
         self._lift_top_buttons(frame)
 
     def _show_game(self, mode: str = "normal") -> None:
@@ -689,6 +702,7 @@ class MikuGochiApp(tk.Tk):
         if mode == "normal":
             self._update_death_countdown()
             self._schedule_status_roll()
+        self._add_watermark(frame)
         self._lift_top_buttons(character_frame)
 
     def _show_statistics(self) -> None:
@@ -746,6 +760,7 @@ class MikuGochiApp(tk.Tk):
             anchor="center",
             wraplength=400,
         ).pack(fill="x", pady=(8, 0))
+        self._add_watermark(frame)
         self._lift_top_buttons(frame)
 
     def _show_top_scores(self) -> None:
@@ -808,6 +823,7 @@ class MikuGochiApp(tk.Tk):
             anchor="center",
             wraplength=400,
         ).pack(fill="x", pady=(8, 0))
+        self._add_watermark(frame)
         self._lift_top_buttons(frame)
 
     def _show_death_screen(self) -> None:
@@ -872,6 +888,7 @@ class MikuGochiApp(tk.Tk):
 
         ttk.Button(frame, text="New Game", command=self._start_new_game).pack(fill="x", pady=6, ipady=6)
         ttk.Button(frame, text="Menu", command=self._save_and_show_menu).pack(fill="x", pady=6, ipady=6)
+        self._add_watermark(frame)
         self._lift_top_buttons(frame)
 
     def _add_status(self, parent: ttk.Frame, key: str, label: str, column: int) -> None:

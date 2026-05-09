@@ -1,0 +1,46 @@
+{
+  "statuses": {
+    "hunger": 2,
+    "sickness": 1,
+    "dirty_room": 0,
+    "lazy": 1
+  },
+  "statistics": {
+    "games_played": 1,
+    "character_deaths": 0,
+    "times_fed": 0,
+    "times_healed": 0,
+    "times_cleaned": 0,
+    "times_entertained": 0
+  },
+  "current_game": {
+    "started_at": 1778341025,
+    "times_fed": 0,
+    "times_healed": 0,
+    "times_cleaned": 0,
+    "times_entertained": 0,
+    "times_rested": 0,
+    "times_worked": 2,
+    "items_bought": 4,
+    "items_used": 0,
+    "money_earned": 4000
+  },
+  "last_game": null,
+  "leaderboard": [],
+  "energy": 80,
+  "money": 1500,
+  "inventory": {
+    "energy_drink": 3,
+    "medicine": 1,
+    "noodles": 0,
+    "magazine": 0
+  },
+  "character_dead": false,
+  "current_character": "miku",
+  "current_weather": "sunny",
+  "current_weather_effect": "sakura_petals",
+  "weather_cycle_index": 0,
+  "last_repeated_action": null,
+  "repeated_action_count": 0,
+  "sound_enabled": true
+}
