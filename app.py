@@ -13,10 +13,22 @@ from PIL import Image, ImageTk
 
 WINDOW_WIDTH = 512
 WINDOW_HEIGHT = 640
+FONT_FAMILY = "Montserrat"
+FONT_TITLE = (FONT_FAMILY, 28, "bold")
+FONT_HEADING = (FONT_FAMILY, 24, "bold")
+FONT_BODY = (FONT_FAMILY, 10)
+FONT_BODY_BOLD = (FONT_FAMILY, 11, "bold")
+FONT_BUTTON = (FONT_FAMILY, 9, "bold")
+FONT_SCENE = (FONT_FAMILY, 13, "bold")
+FONT_SCENE_SMALL = (FONT_FAMILY, 12, "bold")
+FONT_STATUS_ICON = (FONT_FAMILY, 14, "bold")
+AQUAMARINE = "#7fffd4"
+BUTTON_ACTIVE_AQUAMARINE = "#65eac1"
+BUTTON_DISABLED_AQUAMARINE = "#9ad9c6"
 CHARACTER_AREA_HEIGHT = 340
 CHARACTER_AREA_BG = "#c8f4ec"
-TOP_BUTTON_SIZE = 32
-MENU_BUTTON_WIDTH = 64
+TOP_BUTTON_SIZE = 44
+MENU_BUTTON_WIDTH = 84
 STATUS_CHECK_INTERVAL_MS = 20_000
 STATUS_CHANGE_CHANCE = 0.6
 DEATH_COUNTDOWN_SECONDS = 30
@@ -225,6 +237,7 @@ class MikuGochiApp(tk.Tk):
         self.title("MikuGochi Prototype")
         self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
         self.resizable(False, False)
+        self._configure_theme()
 
         self.statuses = DEFAULT_STATUSES.copy()
         self.statistics = DEFAULT_STATISTICS.copy()
@@ -291,6 +304,149 @@ class MikuGochiApp(tk.Tk):
         self._show_menu()
         self.after(100, self._ensure_soundtrack_playing)
 
+    def _configure_theme(self) -> None:
+        self.option_add("*Font", FONT_BODY)
+        self.option_add("*Button.Font", FONT_BUTTON)
+
+        style = ttk.Style(self)
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+
+        style.configure(".", font=FONT_BODY)
+        style.configure("TLabel", font=FONT_BODY, foreground="#111111")
+        style.configure(
+            "TButton",
+            background=AQUAMARINE,
+            foreground="#000000",
+            bordercolor="#000000",
+            darkcolor="#000000",
+            lightcolor="#000000",
+            focuscolor=AQUAMARINE,
+            borderwidth=3,
+            relief="solid",
+            font=FONT_BUTTON,
+            padding=(6, 3),
+        )
+        style.map(
+            "TButton",
+            background=[
+                ("disabled", BUTTON_DISABLED_AQUAMARINE),
+                ("pressed", BUTTON_ACTIVE_AQUAMARINE),
+                ("active", BUTTON_ACTIVE_AQUAMARINE),
+            ],
+            foreground=[("disabled", "#4c4c4c"), ("active", "#000000")],
+            relief=[("pressed", "sunken"), ("!pressed", "solid")],
+        )
+
+    def _add_heading(
+        self,
+        parent: tk.Misc,
+        text: str,
+        font: tuple[str, int, str] = FONT_HEADING,
+        pady: tuple[int, int] = (34, 22),
+    ) -> tk.Canvas:
+        canvas = tk.Canvas(
+            parent,
+            height=44,
+            bg="#f6f7fb",
+            highlightthickness=0,
+            bd=0,
+        )
+        canvas.pack(fill="x", pady=pady)
+        y = 22
+        text_items = []
+        for dx, dy in (
+            (-2, 0),
+            (2, 0),
+            (0, -2),
+            (0, 2),
+            (-1, -1),
+            (1, -1),
+            (-1, 1),
+            (1, 1),
+        ):
+            text_items.append(
+                canvas.create_text(
+                    dx,
+                    y + dy,
+                    text=text,
+                    anchor="center",
+                    fill="#000000",
+                    font=font,
+                )
+            )
+        text_items.append(
+            canvas.create_text(
+                0,
+                y,
+                text=text,
+                anchor="center",
+                fill=AQUAMARINE,
+                font=font,
+            )
+        )
+
+        def center_heading(event: tk.Event) -> None:
+            offsets = (
+                (-2, 0),
+                (2, 0),
+                (0, -2),
+                (0, 2),
+                (-1, -1),
+                (1, -1),
+                (-1, 1),
+                (1, 1),
+                (0, 0),
+            )
+            center_x = event.width // 2
+            for item, (dx, dy) in zip(text_items, offsets):
+                canvas.coords(item, center_x + dx, y + dy)
+
+        canvas.bind("<Configure>", center_heading)
+        return canvas
+
+    def _create_outlined_canvas_text(
+        self,
+        canvas: tk.Canvas,
+        x: int | float,
+        y: int | float,
+        text: str,
+        fill: str,
+        font: tuple[str, int] | tuple[str, int, str],
+        anchor: str = "center",
+        tags: tuple[str, ...] = ("scene",),
+    ) -> None:
+        for dx, dy in (
+            (-1, 0),
+            (1, 0),
+            (0, -1),
+            (0, 1),
+            (-1, -1),
+            (1, -1),
+            (-1, 1),
+            (1, 1),
+        ):
+            canvas.create_text(
+                x + dx,
+                y + dy,
+                text=text,
+                anchor=anchor,
+                fill="#000000",
+                font=font,
+                tags=tags,
+            )
+        canvas.create_text(
+            x,
+            y,
+            text=text,
+            anchor=anchor,
+            fill=fill,
+            font=font,
+            tags=tags,
+        )
+
     def _clear_screen(self) -> None:
         if self.status_roll_job is not None:
             try:
@@ -339,12 +495,7 @@ class MikuGochiApp(tk.Tk):
         self._add_reset_button(frame, x=8, y=0)
         self._add_sound_button(frame, x=-8, y=0)
 
-        ttk.Label(
-            frame,
-            text="MikuGochi",
-            anchor="center",
-            font=("Segoe UI", 28, "bold"),
-        ).pack(fill="x", pady=(28, 8))
+        self._add_heading(frame, "MikuGochi", font=FONT_TITLE, pady=(28, 8))
 
         ttk.Label(
             frame,
@@ -425,6 +576,7 @@ class MikuGochiApp(tk.Tk):
         ttk.Button(frame, text="Statistics", command=self._show_statistics).pack(fill="x", pady=6, ipady=6)
         ttk.Button(frame, text="Top Scores", command=self._show_top_scores).pack(fill="x", pady=6, ipady=6)
         ttk.Button(frame, text="Close", command=self._on_close).pack(fill="x", pady=6, ipady=6)
+        self._lift_top_buttons(frame)
 
     def _show_game(self, mode: str = "normal") -> None:
         self._clear_screen()
@@ -464,7 +616,7 @@ class MikuGochiApp(tk.Tk):
             character_frame,
             text=f"Energy: {self.energy}/{MAX_ENERGY}",
             anchor="w",
-            font=("Segoe UI", 11, "bold"),
+            font=FONT_BODY_BOLD,
             background=CHARACTER_AREA_BG,
         )
         self.energy_label.place(x=14, y=14, anchor="nw")
@@ -473,7 +625,7 @@ class MikuGochiApp(tk.Tk):
             character_frame,
             text=f"Money: {self.money}¥",
             anchor="w",
-            font=("Segoe UI", 11, "bold"),
+            font=FONT_BODY_BOLD,
             background=CHARACTER_AREA_BG,
         )
         self.money_label.place(x=14, y=38, anchor="nw")
@@ -482,7 +634,7 @@ class MikuGochiApp(tk.Tk):
             character_frame,
             text=f"Score: {self._current_score()}",
             anchor="w",
-            font=("Segoe UI", 11, "bold"),
+            font=FONT_BODY_BOLD,
             background=CHARACTER_AREA_BG,
         )
         self.score_label.place(x=14, y=62, anchor="nw")
@@ -491,7 +643,7 @@ class MikuGochiApp(tk.Tk):
             character_frame,
             text="Mood: Excellent",
             anchor="w",
-            font=("Segoe UI", 11, "bold"),
+            font=FONT_BODY_BOLD,
             background=CHARACTER_AREA_BG,
         )
         self.mood_label.place(x=14, rely=1.0, y=-18, anchor="sw")
@@ -500,7 +652,7 @@ class MikuGochiApp(tk.Tk):
             character_frame,
             text="",
             anchor="e",
-            font=("Segoe UI", 11, "bold"),
+            font=FONT_BODY_BOLD,
             foreground="#b3261e",
             background=CHARACTER_AREA_BG,
         )
@@ -537,6 +689,7 @@ class MikuGochiApp(tk.Tk):
         if mode == "normal":
             self._update_death_countdown()
             self._schedule_status_roll()
+        self._lift_top_buttons(character_frame)
 
     def _show_statistics(self) -> None:
         self._clear_screen()
@@ -548,12 +701,7 @@ class MikuGochiApp(tk.Tk):
         self._add_menu_button(frame, x=-8, y=0)
         self._add_sound_button(frame, x=-(8 + MENU_BUTTON_WIDTH + 8), y=0)
 
-        ttk.Label(
-            frame,
-            text="Statistics",
-            anchor="center",
-            font=("Segoe UI", 24, "bold"),
-        ).pack(fill="x", pady=(34, 22))
+        self._add_heading(frame, "Statistics")
 
         stats_frame = ttk.Frame(frame)
         stats_frame.pack(fill="x", pady=(0, 22))
@@ -585,7 +733,7 @@ class MikuGochiApp(tk.Tk):
             stats_frame.columnconfigure(0, weight=1)
             stats_frame.columnconfigure(1, weight=0)
             ttk.Label(stats_frame, text=label).grid(row=row, column=0, sticky="w", pady=7)
-            ttk.Label(stats_frame, text=str(value), font=("Segoe UI", 11, "bold")).grid(
+            ttk.Label(stats_frame, text=str(value), font=FONT_BODY_BOLD).grid(
                 row=row,
                 column=1,
                 sticky="e",
@@ -598,6 +746,7 @@ class MikuGochiApp(tk.Tk):
             anchor="center",
             wraplength=400,
         ).pack(fill="x", pady=(8, 0))
+        self._lift_top_buttons(frame)
 
     def _show_top_scores(self) -> None:
         self._clear_screen()
@@ -609,12 +758,7 @@ class MikuGochiApp(tk.Tk):
         self._add_menu_button(frame, x=-8, y=0)
         self._add_sound_button(frame, x=-(8 + MENU_BUTTON_WIDTH + 8), y=0)
 
-        ttk.Label(
-            frame,
-            text="Top Scores",
-            anchor="center",
-            font=("Segoe UI", 24, "bold"),
-        ).pack(fill="x", pady=(34, 22))
+        self._add_heading(frame, "Top Scores")
 
         scores_frame = ttk.Frame(frame)
         scores_frame.pack(fill="x", pady=(0, 20))
@@ -622,7 +766,7 @@ class MikuGochiApp(tk.Tk):
         for column in range(len(headers)):
             scores_frame.columnconfigure(column, weight=1 if column == 1 else 0)
         for column, header in enumerate(headers):
-            ttk.Label(scores_frame, text=header, font=("Segoe UI", 10, "bold")).grid(
+            ttk.Label(scores_frame, text=header, font=FONT_BUTTON).grid(
                 row=0,
                 column=column,
                 sticky="e" if column else "w",
@@ -649,7 +793,7 @@ class MikuGochiApp(tk.Tk):
                     ttk.Label(
                         scores_frame,
                         text=str(value),
-                        font=("Segoe UI", 11, "bold") if column == 2 else ("Segoe UI", 10),
+                        font=FONT_BODY_BOLD if column == 2 else FONT_BODY,
                     ).grid(
                         row=row,
                         column=column,
@@ -664,6 +808,7 @@ class MikuGochiApp(tk.Tk):
             anchor="center",
             wraplength=400,
         ).pack(fill="x", pady=(8, 0))
+        self._lift_top_buttons(frame)
 
     def _show_death_screen(self) -> None:
         self._cancel_death_countdown()
@@ -675,12 +820,7 @@ class MikuGochiApp(tk.Tk):
 
         self._add_sound_button(frame, x=-8, y=0)
 
-        ttk.Label(
-            frame,
-            text="Game Over",
-            anchor="center",
-            font=("Segoe UI", 24, "bold"),
-        ).pack(fill="x", pady=(28, 10))
+        self._add_heading(frame, "Game Over", pady=(28, 10))
 
         ttk.Label(
             frame,
@@ -723,7 +863,7 @@ class MikuGochiApp(tk.Tk):
 
         for row, (label, value) in enumerate(rows):
             ttk.Label(stats_frame, text=label).grid(row=row, column=0, sticky="w", pady=7)
-            ttk.Label(stats_frame, text=str(value), font=("Segoe UI", 11, "bold")).grid(
+            ttk.Label(stats_frame, text=str(value), font=FONT_BODY_BOLD).grid(
                 row=row,
                 column=1,
                 sticky="e",
@@ -732,6 +872,7 @@ class MikuGochiApp(tk.Tk):
 
         ttk.Button(frame, text="New Game", command=self._start_new_game).pack(fill="x", pady=6, ipady=6)
         ttk.Button(frame, text="Menu", command=self._save_and_show_menu).pack(fill="x", pady=6, ipady=6)
+        self._lift_top_buttons(frame)
 
     def _add_status(self, parent: ttk.Frame, key: str, label: str, column: int) -> None:
         parent.columnconfigure(column, weight=1, uniform="status")
@@ -739,7 +880,7 @@ class MikuGochiApp(tk.Tk):
         frame = ttk.Frame(parent, padding=(4, 0))
         frame.grid(row=0, column=column, sticky="nsew")
 
-        icon = ttk.Label(frame, text="OK", anchor="center", font=("Segoe UI", 14, "bold"))
+        icon = ttk.Label(frame, text="OK", anchor="center", font=FONT_STATUS_ICON)
         icon.pack(fill="x")
 
         text = ttk.Label(frame, text=label, anchor="center")
@@ -812,7 +953,7 @@ class MikuGochiApp(tk.Tk):
             count = self.inventory.get(key, 0)
             button = ttk.Button(
                 shop_frame,
-                text=f"{item['name']} {item['price']}¥ ({count}/{INVENTORY_ITEM_LIMIT})",
+                text=f"{item['name']}\n{item['price']}{chr(165)} ({count}/{INVENTORY_ITEM_LIMIT})",
                 command=lambda item_key=key: self.buy_item(item_key),
             )
             button.grid(
@@ -840,7 +981,7 @@ class MikuGochiApp(tk.Tk):
             count = self.inventory.get(key, 0)
             button = ttk.Button(
                 inventory_frame,
-                text=f"{item['name']} x{count}",
+                text=f"{item['name']}\nx{count}",
                 command=lambda item_key=key: self.use_item(item_key),
             )
             button.grid(
@@ -897,6 +1038,7 @@ class MikuGochiApp(tk.Tk):
     def _add_reset_button(self, parent: tk.Frame | ttk.Frame, x: int, y: int) -> None:
         button = ttk.Button(parent, text="Reset", command=self._show_reset_warning)
         button.place(x=x, y=y, width=MENU_BUTTON_WIDTH, height=TOP_BUTTON_SIZE, anchor="nw")
+        button.lift()
 
     def _place_top_button(self, button: ttk.Button, x: int, y: int, width: int) -> None:
         button.place(
@@ -907,6 +1049,17 @@ class MikuGochiApp(tk.Tk):
             height=TOP_BUTTON_SIZE,
             anchor="ne",
         )
+        button.lift()
+
+    def _lift_top_buttons(self, parent: tk.Misc) -> None:
+        for widget in parent.winfo_children():
+            try:
+                place_info = widget.place_info()
+            except tk.TclError:
+                continue
+
+            if place_info:
+                widget.lift()
 
     def _toggle_sound(self) -> None:
         self.sound_enabled = not self.sound_enabled
@@ -1029,14 +1182,13 @@ class MikuGochiApp(tk.Tk):
                         outline="",
                         tags=("scene",),
                     )
-                    canvas.create_text(
+                    self._create_outlined_canvas_text(
+                        canvas,
                         WINDOW_WIDTH // 2,
                         104,
                         text=layer["text"],
-                        anchor="center",
                         fill="#263238",
-                        font=("Segoe UI", 12, "bold"),
-                        tags=("scene",),
+                        font=FONT_SCENE_SMALL,
                     )
                 else:
                     canvas.create_image(0, 0, image=image, anchor="nw", tags=("scene",))
@@ -1056,14 +1208,13 @@ class MikuGochiApp(tk.Tk):
                         outline=layer["outline"],
                         tags=("scene",),
                     )
-                    canvas.create_text(
+                    self._create_outlined_canvas_text(
+                        canvas,
                         layer.get("text_x", layer["x"]),
                         layer.get("text_y", layer["y"]),
                         text=layer["text"],
-                        anchor="center",
                         fill=layer.get("color", "#263238"),
-                        font=layer.get("font", ("Segoe UI", 13, "bold")),
-                        tags=("scene",),
+                        font=layer.get("font", FONT_SCENE),
                     )
                 else:
                     canvas.create_image(0, 0, image=image, anchor="nw", tags=("scene",))
@@ -1079,14 +1230,14 @@ class MikuGochiApp(tk.Tk):
             elif layer["kind"] == "character":
                 image = self._current_character_image()
                 if image is None:
-                    canvas.create_text(
+                    self._create_outlined_canvas_text(
+                        canvas,
                         layer["text_x"],
                         layer["text_y"],
                         text=layer["text"],
                         anchor=layer.get("text_anchor", "center"),
                         fill=layer.get("color", "#263238"),
-                        font=layer.get("font", ("Segoe UI", 13, "bold")),
-                        tags=("scene",),
+                        font=layer.get("font", FONT_SCENE),
                     )
                 else:
                     canvas.create_image(
@@ -1097,14 +1248,14 @@ class MikuGochiApp(tk.Tk):
                         tags=("scene",),
                     )
             elif layer["kind"] == "text":
-                canvas.create_text(
+                self._create_outlined_canvas_text(
+                    canvas,
                     layer["x"],
                     layer["y"],
                     text=layer["text"],
                     anchor=layer.get("anchor", "center"),
                     fill=layer.get("color", "#263238"),
-                    font=layer.get("font", ("Segoe UI", 13, "bold")),
-                    tags=("scene",),
+                    font=layer.get("font", FONT_SCENE),
                 )
             elif layer["kind"] == "panel":
                 canvas.create_rectangle(
@@ -1116,14 +1267,13 @@ class MikuGochiApp(tk.Tk):
                     outline=layer["outline"],
                     tags=("scene",),
                 )
-                canvas.create_text(
+                self._create_outlined_canvas_text(
+                    canvas,
                     layer["x"],
                     layer["y"],
                     text=layer["text"],
-                    anchor="center",
                     fill=layer.get("color", "#263238"),
-                    font=layer.get("font", ("Segoe UI", 13, "bold")),
-                    tags=("scene",),
+                    font=layer.get("font", FONT_SCENE),
                 )
 
     def _character_scene_layers(self) -> list[dict[str, object]]:
@@ -1164,7 +1314,7 @@ class MikuGochiApp(tk.Tk):
                 - (KONBINI_WORKER_SPRITE_BOTTOM_Y if is_konbini else CHARACTER_SPRITE_BOTTOM_Y),
                 "text_x": WINDOW_WIDTH // 2,
                 "text_y": 218,
-                "font": ("Segoe UI", 18, "bold"),
+                "font": (FONT_FAMILY, 18, "bold"),
             },
             {
                 "kind": "interface",
@@ -1588,7 +1738,9 @@ class MikuGochiApp(tk.Tk):
         for key, button in self.shop_buttons.items():
             item = ITEMS[key]
             count = self.inventory.get(key, 0)
-            button.configure(text=f"{item['name']} {item['price']}¥ ({count}/{INVENTORY_ITEM_LIMIT})")
+            button.configure(
+                text=f"{item['name']}\n{item['price']}{chr(165)} ({count}/{INVENTORY_ITEM_LIMIT})"
+            )
             if count >= INVENTORY_ITEM_LIMIT:
                 button.state(["disabled"])
             else:
