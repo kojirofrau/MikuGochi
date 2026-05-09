@@ -1055,6 +1055,7 @@ class MikuGochiApp(tk.Tk):
     def _add_reset_button(self, parent: tk.Frame | ttk.Frame, x: int, y: int) -> None:
         button = ttk.Button(parent, text="Reset", command=self._show_reset_warning)
         button.place(x=x, y=y, width=MENU_BUTTON_WIDTH, height=TOP_BUTTON_SIZE, anchor="nw")
+        button.is_top_control = True
         button.lift()
 
     def _place_top_button(self, button: ttk.Button, x: int, y: int, width: int) -> None:
@@ -1066,16 +1067,12 @@ class MikuGochiApp(tk.Tk):
             height=TOP_BUTTON_SIZE,
             anchor="ne",
         )
+        button.is_top_control = True
         button.lift()
 
     def _lift_top_buttons(self, parent: tk.Misc) -> None:
         for widget in parent.winfo_children():
-            try:
-                place_info = widget.place_info()
-            except tk.TclError:
-                continue
-
-            if place_info:
+            if getattr(widget, "is_top_control", False):
                 widget.lift()
 
     def _toggle_sound(self) -> None:

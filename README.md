@@ -1,70 +1,85 @@
 # MikuGochi
 
-A small native Windows desktop prototype for a Tamagotchi-like game.
+MikuGochi is a small native Windows desktop pet game prototype built with Python, Tkinter, and Pillow. It runs in a fixed `512x640` window with animated character, room, shop, weather, trash, and UI layers.
 
-## Run
+## Run From Source
 
-Install Python 3 for Windows, then run:
+Install Python 3 for Windows and the Pillow dependency:
+
+```powershell
+python -m pip install pillow
+```
+
+Then run:
 
 ```powershell
 python app.py
 ```
 
-Or double-click `MikuGochi.pyw` to launch it without a console window.
+You can also double-click `MikuGochi.pyw` or `run_mikugochi.bat` to launch without a console window.
 
-You can also double-click `run_mikugochi.bat`, which launches the same app through `pythonw`.
+## Packaged App
 
-The app opens a fixed `512x640` window. The top area is reserved for the character image and is blank for now.
+The packaged executable is:
 
-The app starts on a menu with:
+```text
+package/MikuGochi.exe
+```
 
-- Continue
-- New Game
-- Statistics
-- Close
+The executable is built with PyInstaller and embeds the app icon from:
 
-The upper-left `Reset` button shows an in-window warning before deleting the current save and all lifetime statistics.
+```text
+assets/icons/mikugochi.ico
+```
 
-Continue loads the current save. New Game shows an in-window warning before deleting old progress, keeps lifetime statistics, and starts a fresh game. Statistics shows total games played, character deaths, successful feed/heal/clean/entertain counts, and the last death summary when available. Close exits the game. When the character dies, the game shows a Game Over screen with the current save's stats and buttons for starting a new game or returning to the menu.
+To rebuild the package:
 
-Every 20 seconds, there is a 60% chance that one status that is not already maxed will randomly worsen by one severity level:
+```powershell
+python -m PyInstaller --noconfirm --distpath package --workpath build MikuGochi.spec
+```
+
+The temporary `build/` folder can be deleted after a successful build.
+
+## Gameplay
+
+The main menu provides Continue, New Game, Statistics, Top Scores, and Close. The Reset button opens an in-window confirmation before deleting progress and lifetime statistics. The speaker button toggles sound.
+
+The game tracks four statuses:
 
 - Hunger
 - Health
 - Dirt
 - Lazy
 
-Each status has severity `0-3`. Use `Feed`, `Heal`, `Clean`, and `Entertain` to reduce the matching status by one point. Each care action costs `5` energy.
+Each status ranges from `0` to `3`. Every 20 seconds, there is a 60% chance that one non-maxed status worsens by one point. Feed, Heal, Clean, and Entertain reduce the matching status by one point and cost `5` energy.
 
-The character starts with `100` energy and cannot go above `100`. Energy is shown in the upper-left corner of the character window, with money shown directly below it. Money starts at `0¥`.
+Energy starts at `100`. Rest restores `10` energy, while Go to Work earns `2000` yen and costs `10` energy. Resting and working both trigger extra status checks and reset the regular status timer.
 
-Use `Rest` to recover `10` energy. Resting is risky: it performs three status checks, each with the same 60% chance to worsen one random status. Resting resets the regular 20-second status timer.
+If every status reaches `3`, a death countdown starts. Clearing any status cancels the countdown. If the timer reaches zero, the game records a Game Over result and adds it to the leaderboard.
 
-Use `Go to Work` to earn `2000¥`. Working costs `10` energy and performs three status checks, each with the same 60% chance to worsen one random status. If energy is below `10`, working is unavailable. Working resets the regular 20-second status timer.
+## Konbini And Inventory
 
-Use `Konbini` to open the shop. The regular status timer pauses, the character text changes to `Seller`, and the care/rest/work buttons are replaced by shop items:
+The Konbini screen pauses the regular status timer and shows the shop layer with an animated convenience-store worker. The worker loops a waiting animation while the shop is open and plays a one-shot thanks animation after successful purchases.
 
-- Energy Drink `500¥`: restores `5` energy
-- Medicine `1000¥`: removes `2` points from Disease
-- Noodles `500¥`: removes `2` hunger
-- Magazine `750¥`: removes `2` laziness
+Shop items:
 
-Shop buttons show their effect when hovered. Buying an item subtracts money immediately and adds the item to inventory. Items cannot be bought on credit. `Return` closes the shop and restarts the regular status timer.
+- Energy Drink: costs `500` yen, restores `5` energy
+- Medicine: costs `1000` yen, reduces Health by `2`
+- Noodles: costs `500` yen, reduces Hunger by `2`
+- Magazine: costs `750` yen, reduces Lazy by `2`
 
-Use `Inventory` to view saved items. The regular status timer pauses, statuses remain visible, item effects appear on hover, and clicking an item uses it. `Return` closes inventory and restarts the regular status timer.
+The Inventory screen pauses the regular status timer and lets the player use purchased items.
 
-The character window shows a text state in the center, such as `Waiting`, `Sick`, `Hungry`, `Messy`, or `Lazy`. It also shows a mood scale in the lower-left corner:
+## Assets
 
-- Terrible
-- Bad
-- Normal
-- Good
-- Excellent
+Important asset folders:
 
-Mood is calculated from the total severity of all statuses. If every status reaches severity `3`, a death countdown starts. During the countdown, `assets/audio/notification_timer_1.mp3` loops until the player clears a status or the countdown reaches zero.
+- `assets/audio`: notification sounds and background music
+- `assets/characters/miku`: Miku animation sprite sheets
+- `assets/characters/konbini_worker`: shop worker sprite sheet
+- `assets/icons`: app icon source PNG and ICO
+- `assets/locations`: room and shop background layer sprite sheet
+- `assets/weather`: animated weather background and effects
+- `assets/garbage`: trash layer sprite sheet
 
-Progress, lifetime statistics, current-save statistics, energy, money, inventory, the last death summary, and the sound toggle are saved to `save.json` when returning to the menu, closing the app, or changing care status.
-
-When a random status change happens, the game plays `assets/audio/notification_1.mp3` at 50% app volume. Use the upper-right speaker button to turn game sound on or off.
-
-Background music uses the `assets/audio/soundtrack_*.mp3` tracks. Tracks are selected randomly, but the same track will not play twice in a row. Background music plays at 50% of the notification volume and follows the same sound on/off button.
+Runtime save files are named `save.json` and are intentionally not needed for a clean package. They are recreated by the game when progress is saved.
